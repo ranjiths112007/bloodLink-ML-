@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BloodLink — AI Donor Matching</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,500&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<style>
+  :root{
+    --bg:#140809;
+    --bg-2:#1c0d0f;
+    --surface:#221012;
+    --surface-2:#2b1416;
+    --line:rgba(246,236,230,0.10);
+    --crimson:#C4122F;
+    --crimson-bright:#E31837;
+    --rose:#FF6B7A;
+    --cream:#F6ECE6;
+    --muted:#A97D82;
+    --mono:'IBM Plex Mono', monospace;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html{scroll-behavior:smooth;}
+  body{
+    background:var(--bg);
+    color:var(--cream);
+    font-family:'Inter', sans-serif;
+    line-height:1.5;
+    overflow-x:hidden;
+  }
+  h1,h2,h3{font-family:'Fraunces', serif; font-weight:600; letter-spacing:-0.01em;}
+  a{color:inherit;}
+  img{max-width:100%; display:block;}
+
+  /* ---------- utility ---------- */
+  .wrap{max-width:1180px; margin:0 auto; padding:0 32px;}
+  .eyebrow{
+    font-family:var(--mono); font-size:12px; letter-spacing:0.12em; text-transform:uppercase;
+    color:var(--rose); display:flex; align-items:center; gap:10px; margin-bottom:18px;
+  }
+  .eyebrow::before{content:''; width:20px; height:1px; background:var(--rose);}
+  .btn{
+    display:inline-flex; align-items:center; gap:10px;
+    background:var(--crimson-bright); color:var(--cream); border:none;
+    font-family:'Inter'; font-weight:600; font-size:15px;
+    padding:14px 26px; border-radius:100px; cursor:pointer;
+    transition:transform .18s ease, box-shadow .18s ease, background .18s ease;
+    box-shadow:0 0 0 0 rgba(227,24,55,0.5);
+  }
+  .btn:hover{transform:translateY(-2px); box-shadow:0 8px 24px rgba(227,24,55,0.35);}
+  .btn:active{transform:translateY(0);}
+  .btn.ghost{
+    background:transparent; border:1px solid var(--line); color:var(--cream);
+  }
+  .btn.ghost:hover{border-color:var(--rose); box-shadow:none;}
+
+  /* ---------- nav ---------- */
+  nav{
+    position:fixed; top:0; left:0; right:0; z-index:50;
+    backdrop-filter:blur(14px); background:rgba(20,8,9,0.72);
+    border-bottom:1px solid var(--line);
+  }
+  nav .wrap{display:flex; align-items:center; justify-content:space-between; height:72px;}
+  .logo{display:flex; align-items:center; gap:10px; font-family:'Fraunces'; font-weight:600; font-size:20px;}
+  .logo svg{width:22px; height:22px;}
+  nav ul{display:flex; gap:36px; list-style:none; font-size:14px; font-weight:500; color:var(--muted);}
+  nav ul a{text-decoration:none; transition:color .15s;}
+  nav ul a:hover{color:var(--cream);}
+  nav .navcta{font-size:13px; padding:10px 20px;}
+
+  /* ---------- hero ---------- */
+  .hero{
+    position:relative; padding:168px 0 100px; overflow:hidden;
+    background:
+      radial-gradient(ellipse 800px 500px at 85% -10%, rgba(196,18,47,0.35), transparent 60%),
+      radial-gradient(ellipse 600px 400px at 5% 20%, rgba(255,107,122,0.12), transparent 60%),
+      var(--bg);
+  }
+  .hero .wrap{position:relative; z-index:2; display:grid; grid-template-columns:1.1fr 0.9fr; gap:60px; align-items:center;}
+  .hero h1{font-size:clamp(40px,5.2vw,68px); line-height:1.03; letter-spacing:-0.02em;}
+  .hero h1 em{font-style:italic; color:var(--rose); font-weight:500;}
+  .hero p.lead{font-size:18px; color:var(--muted); max-width:480px; margin:24px 0 34px; line-height:1.6;}
+  .hero-ctas{display:flex; gap:14px; margin-bottom:44px;}
+  .hero-stats{display:flex; gap:36px;}
+  .hstat b{display:block; font-family:'Fraunces'; font-size:28px; font-weight:600;}
+  .hstat span{font-size:12px; color:var(--muted); font-family:var(--mono); text-transform:uppercase; letter-spacing:0.06em;}
+
+  .hero-visual{position:relative; border-radius:24px; overflow:hidden; aspect-ratio:4/5; border:1px solid var(--line);
+    box-shadow:0 40px 100px -30px rgba(0,0,0,0.7);}
+  .hero-visual img{width:100%; height:100%; object-fit:cover;}
+  .hero-visual::after{
+    content:''; position:absolute; inset:0;
+    background:linear-gradient(180deg, rgba(20,8,9,0) 40%, rgba(20,8,9,0.92) 100%);
+  }
+  .hero-badge{
+    position:absolute; bottom:22px; left:22px; right:22px; z-index:3;
+    background:rgba(34,16,18,0.75); backdrop-filter:blur(10px);
+    border:1px solid var(--line); border-radius:14px; padding:16px 18px;
+    display:flex; align-items:center; gap:12px;
+  }
+  .pulse-dot{width:10px; height:10px; border-radius:50%; background:var(--crimson-bright); flex-shrink:0;
+    box-shadow:0 0 0 0 rgba(227,24,55,0.6); animation:pulseDot 1.6s infinite;}
+  @keyframes pulseDot{
+    0%{box-shadow:0 0 0 0 rgba(227,24,55,0.55);}
+    70%{box-shadow:0 0 0 12px rgba(227,24,55,0);}
+    100%{box-shadow:0 0 0 0 rgba(227,24,55,0);}
+  }
+  .hero-badge div b{display:block; font-size:14px;}
+  .hero-badge div span{font-size:12px; color:var(--muted);}
+
+  /* ---------- ECG divider ---------- */
+  .ecg{width:100%; height:70px; position:relative; background:var(--bg-2); border-top:1px solid var(--line); border-bottom:1px solid var(--line);}
+  .ecg svg{width:100%; height:100%;}
+  .ecg path{
+    fill:none; stroke:var(--crimson-bright); stroke-width:2;
+    stroke-dasharray:2000; stroke-dashoffset:2000;
+    animation:draw 4.5s linear infinite;
+  }
+  @keyframes draw{ to{ stroke-dashoffset:-2000; } }
+
+  /* ---------- section shared ---------- */
+  section{padding:110px 0;}
+  .section-head{max-width:640px; margin-bottom:56px;}
+  .section-head h2{font-size:clamp(30px,3.6vw,42px); line-height:1.12;}
+  .section-head p{color:var(--muted); font-size:16px; margin-top:16px; line-height:1.6;}
+
+  /* ---------- demo ---------- */
+  .demo{background:var(--bg-2);}
+  .demo-panel{
+    background:var(--surface); border:1px solid var(--line); border-radius:20px;
+    padding:24px; display:grid; grid-template-columns:0.8fr 1.4fr 1.2fr; gap:24px;
+  }
+  #map{
+    height:520px;
+    border-radius:14px;
+    border:1px solid var(--line);
+    background:var(--bg);
+    z-index:10;
+  }
+  .leaflet-popup-content-wrapper, .leaflet-popup-tip {
+    background: var(--surface) !important;
+    color: var(--cream) !important;
+    border: 1px solid var(--line) !important;
+  }
+  .leaflet-popup-content {
+    margin: 12px 16px !important;
+  }
+  .leaflet-popup-content b {
+    color: var(--rose);
+  }
+  .demo-col-label{font-family:var(--mono); font-size:12px; text-transform:uppercase; letter-spacing:0.08em; color:var(--muted); margin-bottom:16px; display:block;}
+  .bg-grid{display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:28px;}
+  .bg-btn{
+    background:var(--surface-2); border:1px solid var(--line); color:var(--cream);
+    font-family:var(--mono); font-weight:500; font-size:15px; padding:14px 0; border-radius:10px;
+    cursor:pointer; transition:all .15s;
+  }
+  .bg-btn:hover{border-color:var(--rose);}
+  .bg-btn.active{background:var(--crimson-bright); border-color:var(--crimson-bright); color:#fff;}
+
+  .field{margin-bottom:20px;}
+  .field label{font-size:13px; color:var(--muted); display:block; margin-bottom:8px;}
+  .field select, .field input{
+    width:100%; background:var(--surface-2); border:1px solid var(--line); color:var(--cream);
+    padding:12px 14px; border-radius:10px; font-family:'Inter'; font-size:14px;
+  }
+  #runBtn{width:100%; justify-content:center; margin-top:8px;}
+
+  .donor-list{display:flex; flex-direction:column; gap:10px; max-height:520px; overflow-y:auto; padding-right:6px;}
+  .donor-card{
+    display:flex; align-items:center; gap:14px; background:var(--surface-2); border:1px solid var(--line);
+    border-radius:14px; padding:12px 14px; opacity:0.4; transition:all .4s ease; position:relative;
+  }
+  .donor-card.eligible{opacity:1;}
+  .donor-card.excluded{opacity:0.28;}
+  .donor-avatar{width:46px; height:46px; border-radius:50%; overflow:hidden; flex-shrink:0; border:2px solid var(--line);}
+  .donor-avatar img{width:100%; height:100%; object-fit:cover;}
+  .donor-info{flex:1; min-width:0;}
+  .donor-name{font-weight:600; font-size:14.5px; display:flex; align-items:center; gap:8px;}
+  .bg-tag{
+    font-family:var(--mono); font-size:11px; background:rgba(196,18,47,0.18); color:var(--rose);
+    padding:2px 7px; border-radius:5px; font-weight:500;
+  }
+  .donor-meta{font-size:12px; color:var(--muted); margin-top:3px;}
+  .donor-score{text-align:right; font-family:var(--mono); min-width:64px;}
+  .donor-score b{font-size:18px; display:block;}
+  .donor-score span{font-size:10px; color:var(--muted); text-transform:uppercase;}
+  .score-bar{height:4px; background:var(--surface); border-radius:2px; margin-top:8px; overflow:hidden;}
+  .score-bar i{display:block; height:100%; background:linear-gradient(90deg, var(--crimson), var(--rose)); width:0%; transition:width .8s cubic-bezier(.2,.8,.2,1);}
+  .reason-tag{
+    position:absolute; top:-8px; right:12px; font-family:var(--mono); font-size:9px;
+    background:var(--bg-2); border:1px solid var(--line); color:var(--muted);
+    padding:2px 6px; border-radius:5px; text-transform:uppercase; letter-spacing:0.04em;
+  }
+
+  /* ---------- pipeline ---------- */
+  .pipeline{display:grid; grid-template-columns:repeat(3,1fr); gap:28px;}
+  .pcard{
+    background:var(--surface); border:1px solid var(--line); border-radius:18px; padding:32px 28px;
+    position:relative; transition:border-color .2s;
+  }
+  .pcard:hover{border-color:rgba(255,107,122,0.4);}
+  .pnum{font-family:var(--mono); color:var(--rose); font-size:13px; margin-bottom:20px;}
+  .pcard h3{font-size:21px; margin-bottom:12px;}
+  .pcard p{color:var(--muted); font-size:14.5px; line-height:1.6;}
+  .picon{width:44px; height:44px; margin-bottom:20px;}
+
+  /* ---------- gallery / images strip ---------- */
+  .gallery{display:grid; grid-template-columns:1.3fr 1fr 1fr; gap:18px; height:420px;}
+  .gallery img{width:100%; height:100%; object-fit:cover; border-radius:16px; border:1px solid var(--line);}
+  .gallery .g-stack{display:grid; grid-template-rows:1fr 1fr; gap:18px;}
+
+  /* ---------- stack ---------- */
+  .stack-grid{display:grid; grid-template-columns:repeat(4,1fr); gap:18px;}
+  .stack-item{
+    background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:22px;
+    font-family:var(--mono); font-size:13px; color:var(--muted);
+  }
+  .stack-item b{display:block; font-family:'Inter'; color:var(--cream); font-size:15px; margin-bottom:6px; font-weight:600;}
+
+  /* ---------- footer ---------- */
+  footer{background:var(--bg-2); border-top:1px solid var(--line); padding:60px 0 34px;}
+  footer .wrap{display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:30px;}
+  footer .fnote{color:var(--muted); font-size:13.5px; max-width:340px; line-height:1.6;}
+  footer .flinks{display:flex; gap:28px; font-size:14px;}
+  footer .flinks a{text-decoration:none; color:var(--muted); transition:color .15s;}
+  footer .flinks a:hover{color:var(--rose);}
+  .fbottom{margin-top:44px; padding-top:24px; border-top:1px solid var(--line); font-size:12px; color:var(--muted); font-family:var(--mono);}
+
+  @media(max-width:920px){
+    .hero .wrap{grid-template-columns:1fr;}
+    .hero-visual{order:-1; aspect-ratio:16/9;}
+    .demo-panel{grid-template-columns:1fr;}
+    .pipeline{grid-template-columns:1fr;}
+    .gallery{grid-template-columns:1fr; height:auto;}
+    .gallery .g-stack{grid-template-columns:1fr 1fr; grid-template-rows:none;}
+    .stack-grid{grid-template-columns:1fr 1fr;}
+    nav ul{display:none;}
+  }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="wrap">
+    <div class="logo">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M12 2C12 2 5 10.5 5 15.5C5 19.09 8.13 22 12 22C15.87 22 19 19.09 19 15.5C19 10.5 12 2 12 2Z" fill="#E31837"/></svg>
+      BloodLink
+    </div>
+    <ul>
+      <li><a href="#demo">Live Demo</a></li>
+      <li><a href="#pipeline">How it works</a></li>
+      <li><a href="#stack">Stack</a></li>
+    </ul>
+    <button class="btn navcta">View on GitHub</button>
+  </div>
+</nav>
+
+<section class="hero">
+  <div class="wrap">
+    <div>
+      <div class="eyebrow">AI-Powered Donor Matching</div>
+      <h1>Every drop<br><em>finds</em> its match.</h1>
+      <p class="lead">BloodLink ranks eligible blood donors in real time — combining hard medical compatibility rules with a machine-learning model trained to predict who will actually respond.</p>
+      <div class="hero-ctas">
+        <a href="#demo" class="btn">Try the live matcher</a>
+        <a href="#pipeline" class="btn ghost">See how it works</a>
+      </div>
+      <div class="hero-stats">
+        <div class="hstat"><b>0.70</b><span>ROC-AUC</span></div>
+        <div class="hstat"><b>8</b><span>Signal features</span></div>
+        <div class="hstat"><b>&lt;90ms</b><span>Match latency</span></div>
+      </div>
+    </div>
+    <div class="hero-visual">
+      <img src="https://images.unsplash.com/photo-1615461066841-6116e61058f4?q=80&w=1200&auto=format&fit=crop" alt="Blood donation">
+      <div class="hero-badge">
+        <span class="pulse-dot"></span>
+        <div><b>Matching engine live</b><span>Rule filter → ML ranking → sorted output</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="ecg">
+  <svg viewBox="0 0 1200 70" preserveAspectRatio="none">
+    <path d="M0,35 L120,35 L150,35 L165,10 L180,60 L195,35 L230,35 L400,35 L420,35 L435,10 L450,60 L465,35 L500,35 L680,35 L700,35 L715,10 L730,60 L745,35 L780,35 L960,35 L980,35 L995,10 L1010,60 L1025,35 L1200,35"/>
+  </svg>
+</div>
+
+<section id="demo" class="demo">
+  <div class="wrap">
+    <div class="section-head">
+      <div class="eyebrow">Interactive</div>
+      <h2>Run a match, right here.</h2>
+      <p>Pick a blood type a patient needs. The engine filters the donor pool by compatibility, recency, and distance — then ranks whoever's left by predicted likelihood to respond.</p>
+    </div>
+
+    <div class="demo-panel">
+      <!-- Col 1: Settings -->
+      <div>
+        <span class="demo-col-label">01 — Settings</span>
+        <div class="bg-grid" id="bgGrid"></div>
+
+        <div class="field">
+          <label>Max distance</label>
+          <select id="maxDist">
+            <option value="10">10 km</option>
+            <option value="20">20 km</option>
+            <option value="30" selected>30 km</option>
+            <option value="50">50 km</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label>Patient location</label>
+          <div style="font-family:var(--mono); font-size:12px; color:var(--muted); background:var(--surface-2); padding:10px 12px; border-radius:10px; border:1px solid var(--line);" id="patientCoordText">
+            13.0827, 80.2707 (Chennai)
+          </div>
+          <span style="font-size:11px; color:var(--muted); display:block; margin-top:6px;">Drag the red pin on the map to relocate patient.</span>
+        </div>
+
+        <button class="btn" id="runBtn">Find best donors</button>
+      </div>
+
+      <!-- Col 2: Map -->
+      <div>
+        <span class="demo-col-label">02 — Match Map</span>
+        <div id="map"></div>
+      </div>
+
+      <!-- Col 3: Results -->
+      <div>
+        <span class="demo-col-label">03 — Ranked results</span>
+        <div class="donor-list" id="donorList"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="pipeline">
+  <div class="wrap">
+    <div class="section-head">
+      <div class="eyebrow">Architecture</div>
+      <h2>A hybrid pipeline, on purpose.</h2>
+      <p>Blood compatibility is a medical fact, not a prediction — so it's never left to the model. The ML layer only ever ranks candidates who already passed every hard rule.</p>
+    </div>
+
+    <div class="pipeline">
+      <div class="pcard">
+        <div class="pnum">Stage 1</div>
+        <svg class="picon" viewBox="0 0 24 24" fill="none"><path d="M12 2L4 12.5C4 17.19 7.58 21 12 21C16.42 21 20 17.19 20 12.5L12 2Z" stroke="#FF6B7A" stroke-width="1.5"/></svg>
+        <h3>Rule filter</h3>
+        <p>Blood-type compatibility, the 90-day donation gap, age eligibility, and distance cutoff. Fails any one, and a donor is never shown — no exceptions, no ML override.</p>
+      </div>
+      <div class="pcard">
+        <div class="pnum">Stage 2</div>
+        <svg class="picon" viewBox="0 0 24 24" fill="none"><circle cx="6" cy="12" r="2.5" stroke="#FF6B7A" stroke-width="1.5"/><circle cx="18" cy="6" r="2.5" stroke="#FF6B7A" stroke-width="1.5"/><circle cx="18" cy="18" r="2.5" stroke="#FF6B7A" stroke-width="1.5"/><path d="M8.2 11L15.8 6.8M8.2 13L15.8 17.2" stroke="#FF6B7A" stroke-width="1.5"/></svg>
+        <h3>ML ranking</h3>
+        <p>A Random Forest scores every eligible donor on predicted response likelihood — trained on distance, availability, donation history, and past response time.</p>
+      </div>
+      <div class="pcard">
+        <div class="pnum">Stage 3</div>
+        <svg class="picon" viewBox="0 0 24 24" fill="none"><path d="M4 18L9 8L14 14L20 4" stroke="#FF6B7A" stroke-width="1.5"/><path d="M15 4H20V9" stroke="#FF6B7A" stroke-width="1.5"/></svg>
+        <h3>Scored output</h3>
+        <p>ML probability and a proximity bonus blend into a single 0–100 compatibility score. Care teams get an ordered call list, not a black box.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="demo">
+  <div class="wrap">
+    <div class="gallery">
+      <img src="https://images.unsplash.com/photo-1615461066159-fea0960485d5?q=80&w=1000&auto=format&fit=crop" alt="Blood bags">
+      <div class="g-stack">
+        <img src="https://images.unsplash.com/photo-1584515933487-779824d29309?q=80&w=700&auto=format&fit=crop" alt="Donor">
+        <img src="https://images.unsplash.com/photo-1615461066968-e3f9bab55345?q=80&w=700&auto=format&fit=crop" alt="Medical hands">
+      </div>
+      <img src="https://images.unsplash.com/photo-1615461066968-3fe5df4b0a67?q=80&w=1000&auto=format&fit=crop" alt="Nurse and donor">
+    </div>
+  </div>
+</section>
+
+<section id="stack">
+  <div class="wrap">
+    <div class="section-head">
+      <div class="eyebrow">Under the hood</div>
+      <h2>Built with a plain, dependable stack.</h2>
+    </div>
+    <div class="stack-grid">
+      <div class="stack-item"><b>scikit-learn</b>Random Forest classifier for response prediction</div>
+      <div class="stack-item"><b>Flask</b>REST endpoint serving ranked matches</div>
+      <div class="stack-item"><b>SQLite</b>Donor and request storage</div>
+      <div class="stack-item"><b>Leaflet.js</b>Live map of matched donors</div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div>
+      <div class="logo" style="margin-bottom:14px;">
+        <svg viewBox="0 0 24 24" fill="none" width="20" height="20"><path d="M12 2C12 2 5 10.5 5 15.5C5 19.09 8.13 22 12 22C15.87 22 19 19.09 19 15.5C19 10.5 12 2 12 2Z" fill="#E31837"/></svg>
+        BloodLink
+      </div>
+      <p class="fnote">An AI-assisted donor-recipient matching prototype — built to explore how rule-based safety and machine-learning ranking can work together in a life-critical system.</p>
+    </div>
+    <div class="flinks">
+      <a href="#demo">Live Demo</a>
+      <a href="#pipeline">Architecture</a>
+      <a href="https://github.com/ranjiths112007" target="_blank">GitHub</a>
+      <a href="https://linkedin.com/in/ranjith-sivashanmugam-800b50288" target="_blank">LinkedIn</a>
+    </div>
+  </div>
+  <div class="wrap fbottom">Built by Ranjith Sivashanmugam · Salem, Tamil Nadu demo dataset</div>
+</footer>
+
+<script>
+const bloodGroups = ["O-","O+","A-","A+","B-","B+","AB-","AB+"];
+
+let selectedBG = "O+";
+const grid = document.getElementById('bgGrid');
+bloodGroups.forEach(bg=>{
+  const b = document.createElement('button');
+  b.className = 'bg-btn' + (bg===selectedBG ? ' active':'');
+  b.textContent = bg;
+  b.onclick = ()=>{
+    selectedBG = bg;
+    document.querySelectorAll('.bg-btn').forEach(x=>x.classList.remove('active'));
+    b.classList.add('active');
+    runMatch(); // rerun search automatically when blood type changes
+  };
+  grid.appendChild(b);
+});
+
+// Initialize Leaflet map
+const map = L.map('map', {
+  center: [13.0827, 80.2707],
+  zoom: 11,
+  zoomControl: true
+});
+
+// Add CartoDB Dark Matter tile layer for an elegant dark UI theme matching BloodLink
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+  subdomains: 'abcd',
+  maxZoom: 20
+}).addTo(map);
+
+// Add patient marker icon (flashing/pulsing red pin)
+const patientIcon = L.divIcon({
+  html: `<div style="background:var(--crimson-bright); width:16px; height:16px; border-radius:50%; border:3px solid var(--cream); box-shadow:0 0 10px var(--crimson-bright); position:absolute; left:-8px; top:-8px;"></div>`,
+  className: 'custom-patient-marker'
+});
+
+let patientMarker = L.marker([13.0827, 80.2707], {
+  draggable: true,
+  icon: patientIcon
+}).addTo(map);
+
+patientMarker.bindPopup("<b>Patient / Hospital</b><br>Chennai, TN<br>Drag pin to relocate recipient").openPopup();
+
+patientMarker.on('dragend', function() {
+  const latlng = patientMarker.getLatLng();
+  document.getElementById('patientCoordText').textContent = `${latlng.lat.toFixed(4)}, ${latlng.lng.toFixed(4)}`;
+  runMatch(); // rerun matching on drag
+});
+
+// Dynamic map layer groups
+const donorMarkersGroup = L.layerGroup().addTo(map);
+const connectionLinesGroup = L.layerGroup().addTo(map);
+
+function donorCardEl(d, score, reason){
+  const el = document.createElement('div');
+  el.className = 'donor-card' + (reason ? ' excluded' : ' eligible');
+  const bg = d.blood_group || d.bg;
+  const img = d.image_url || d.img;
+  const dist = d.distance_km !== undefined ? d.distance_km : d.distance;
+  const avail = d.is_available_now !== undefined ? d.is_available_now : d.avail;
+  const reasonText = reason ? reason.replace(/_/g, ' ') : '';
+
+  el.innerHTML = `
+    ${reason ? `<span class="reason-tag">${reasonText}</span>` : ''}
+    <div class="donor-avatar"><img src="${img}" alt="${d.name}"></div>
+    <div class="donor-info">
+      <div class="donor-name">${d.name} <span class="bg-tag">${bg}</span></div>
+      <div class="donor-meta">${dist.toFixed(1)} km away · ${avail ? 'Available now' : 'Unavailable'}</div>
+      ${score !== null && score !== undefined && !reason ? `<div class="score-bar"><i style="width:0%"></i></div>` : ''}
+    </div>
+    ${score !== null && score !== undefined && !reason ? `<div class="donor-score"><b>${score.toFixed(0)}</b><span>score</span></div>` : ''}
+  `;
+  return el;
+}
+
+function runMatch(){
+  const maxDist = parseFloat(document.getElementById('maxDist').value);
+  const latlng = patientMarker.getLatLng();
+  const list = document.getElementById('donorList');
+  
+  // Show loading indicator
+  list.innerHTML = '<div style="font-size:14px; color:var(--muted); padding:20px; text-align:center;">Running predictions & ranking candidates...</div>';
+
+  fetch('/api/match-donors', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      blood_group: selectedBG,
+      lat: latlng.lat,
+      lon: latlng.lng,
+      max_distance: maxDist
+    })
+  })
+  .then(res => {
+    if (!res.ok) throw new Error('API request failed');
+    return res.json();
+  })
+  .then(data => {
+    // Clear previous elements
+    donorMarkersGroup.clearLayers();
+    connectionLinesGroup.clearLayers();
+    list.innerHTML = '';
+
+    const bounds = L.latLngBounds([latlng]);
+
+    // 1. Plot & Render Matches (Eligible)
+    if (data.matches && data.matches.length > 0) {
+      data.matches.forEach((m, idx) => {
+        const donorLoc = [m.latitude, m.longitude];
+        bounds.extend(donorLoc);
+
+        // Add donor card
+        const card = donorCardEl(m, m.compatibility_score, null);
+        list.appendChild(card);
+
+        // Animate score bar
+        setTimeout(() => {
+          const bar = card.querySelector('.score-bar i');
+          if (bar) bar.style.width = m.compatibility_score + '%';
+        }, 60 * idx + 40);
+
+        // Plot eligible donor on map
+        // Score color scale: high (>75) = crimson/rose, mid = muted rose
+        const scoreColor = m.compatibility_score > 75 ? 'var(--rose)' : '#c24b58';
+        const donorIcon = L.divIcon({
+          html: `<div style="background:${scoreColor}; width:12px; height:12px; border-radius:50%; border:2px solid var(--cream); position:absolute; left:-6px; top:-6px; box-shadow:0 0 8px ${scoreColor}"></div>`,
+          className: 'custom-donor-marker'
+        });
+
+        const marker = L.marker(donorLoc, { icon: donorIcon }).addTo(donorMarkersGroup);
+        marker.bindPopup(`
+          <div style="font-family:'Inter', sans-serif; color:#140809; font-size:12px; line-height:1.4;">
+            <b style="font-size:13px; color:var(--crimson);">${m.name}</b> [${m.blood_group}]<br>
+            Compatibility Score: <b>${m.compatibility_score}</b>/100<br>
+            Distance: ${m.distance_km} km<br>
+            ML response prob: ${(m.ml_response_probability * 100).toFixed(0)}%<br>
+            Age: ${m.age} · Available: ${m.is_available_now ? 'Yes' : 'No'}
+          </div>
+        `);
+
+        // Draw dotted connection line
+        L.polyline([latlng, donorLoc], {
+          color: scoreColor,
+          weight: 1.5,
+          opacity: 0.55,
+          dashArray: '3, 4'
+        }).addTo(connectionLinesGroup);
+      });
+    }
+
+    // 2. Plot & Render Excluded (Ineligible)
+    if (data.excluded && data.excluded.length > 0) {
+      data.excluded.forEach(x => {
+        const card = donorCardEl(x, undefined, x.excluded_reason);
+        list.appendChild(card);
+
+        // Plot excluded on map as tiny gray dots
+        const donorLoc = [x.latitude, x.longitude];
+        const exIcon = L.divIcon({
+          html: `<div style="background:#4a2b2f; width:8px; height:8px; border-radius:50%; border:1px solid #774e53; position:absolute; left:-4px; top:-4px; opacity:0.6;"></div>`,
+          className: 'custom-ex-marker'
+        });
+        
+        const marker = L.marker(donorLoc, { icon: exIcon }).addTo(donorMarkersGroup);
+        marker.bindPopup(`
+          <div style="font-family:'Inter', sans-serif; color:#140809; font-size:12px; line-height:1.4; opacity:0.85;">
+            <b>${x.name}</b> [${x.blood_group}]<br>
+            Excluded: <span style="color:var(--crimson); font-weight:bold;">${x.excluded_reason.replace(/_/g, ' ')}</span><br>
+            Distance: ${x.distance_km} km · Age: ${x.age}
+          </div>
+        `);
+      });
+    }
+
+    // Center map around the patient and matches
+    if (data.matches && data.matches.length > 0) {
+      map.fitBounds(bounds, { padding: [50, 50] });
+    } else {
+      map.setView(latlng, 12);
+    }
+  })
+  .catch(err => {
+    console.error("Match error:", err);
+    list.innerHTML = '<div style="font-size:14px; color:var(--rose); padding:20px; text-align:center;">Matching server offline or returned an error.</div>';
+  });
+}
+
+document.getElementById('runBtn').addEventListener('click', runMatch);
+document.getElementById('maxDist').addEventListener('change', runMatch);
+
+// Trigger initial match query
+setTimeout(runMatch, 500);
+</script>
+
+</body>
+</html>
