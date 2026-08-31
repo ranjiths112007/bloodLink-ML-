@@ -1,227 +1,137 @@
-# 🩸 BloodLink AI
-<div align="center">
+# 🩸 BloodLink — Human-first AI Blood Donor Matching
 
-# 🩸 BloodLink
-### Intelligent Blood Donor Matching System using Machine Learning
+BloodLink is an AI-assisted donor matching prototype that helps a patient or hospital find compatible, nearby donors and prioritize eligible candidates by predicted response likelihood.
 
-![Python](https://img.shields.io/badge/Python-3.10+-blue?style=for-the-badge&logo=python)
-![Flask](https://img.shields.io/badge/Flask-Web%20API-black?style=for-the-badge&logo=flask)
-![SQLite](https://img.shields.io/badge/SQLite-Database-003B57?style=for-the-badge&logo=sqlite)
-![Scikit-Learn](https://img.shields.io/badge/Scikit--Learn-ML-orange?style=for-the-badge&logo=scikitlearn)
+> **Safety boundary:** BloodLink is a matching/recommendation system, not a medical diagnosis or final donor-eligibility authority. Final eligibility must be confirmed by an authorised blood bank or healthcare professional.
 
-*A smart blood donor recommendation platform that combines medical eligibility rules with Machine Learning to identify the most suitable blood donors in real time.*
+## What is implemented
 
-</div>
+- Blood-group compatibility screening before ML.
+- Demo eligibility screening for age, donation recency and distance.
+- Random Forest donor-response ranking.
+- Explainable match reasons instead of score-only output.
+- Persistent SQLite database — startup never deletes existing donor data.
+- Blood-request creation and storage.
+- Donor-contact/outcome logging for a future real-data feedback loop.
+- API validation and structured errors.
+- Health endpoint with model/data status.
+- Responsive human-first dashboard with map, urgency, ranked matches and interaction logging.
+- Fresh databases are automatically populated with clearly demo-only donor records; existing data is preserved.
 
----
-
-## 📌 Project Overview
-
-BloodLink is an AI-powered blood donor matching platform designed to reduce the time required to find suitable blood donors.
-
-Instead of displaying every donor nearby, BloodLink filters medically eligible donors first and then uses a Machine Learning model to rank the remaining donors based on their likelihood of responding quickly and successfully.
-
----
-
-## ✨ Features
-
-- ✅ Blood group compatibility checking
-- ✅ 90-day donation eligibility rule
-- ✅ Age eligibility validation
-- ✅ Distance calculation (Haversine Formula)
-- ✅ Machine Learning based donor ranking
-- ✅ SQLite database
-- ✅ Flask REST API
-- ✅ Dynamic donor scoring
-- ✅ Fast response recommendations
-
----
-
-# 🧠 Machine Learning Pipeline
+## Architecture
 
 ```text
-User Request
-      │
-      ▼
-Medical Rule Engine
-(Blood Group + Age + 90 Day Rule)
-      │
-      ▼
-Eligible Donors
-      │
-      ▼
-Feature Engineering
-      │
-      ▼
-Trained ML Model (.joblib)
-      │
-      ▼
-Response Probability
-      │
-      ▼
-Distance Bonus
-      │
-      ▼
-Final Compatibility Score
-      │
-      ▼
-Top Ranked Donors
+Patient / Hospital Request
+          ↓
+Request Validation
+          ↓
+Hard Safety Screening
+(blood group + demo eligibility + distance)
+          ↓
+Eligible Donor Pool
+          ↓
+ML Response Ranking
+          ↓
+Operational Ranking + Explanation
+          ↓
+Top Donor Call List
+          ↓
+Contact / Response / Donation Outcome
+          ↓
+Historical Interaction Data
+          ↓
+Future Model Retraining
 ```
 
----
+The ML model **never overrides the hard screening layer**.
 
-# 🤖 Why Machine Learning?
+## ML status
 
-Traditional systems only filter donors.
+The repository includes a synthetic-data fallback so the demo works without private historical data. This is intentionally labelled as prototype data.
 
-BloodLink predicts which donor is most likely to respond quickly by learning from historical donor behaviour.
-
-### Model Features
-
-- Distance from patient
-- Age
-- Previous donations
-- Response rate
-- Average response time
-- Availability
-- Days since last donation
-- First-time donor status
-
-The model outputs a **probability of successful donor response**, which is combined with distance to produce the final compatibility score.
-
----
-
-# ⚙️ Tech Stack
-
-| Technology | Purpose |
-|------------|---------|
-| Python | Backend |
-| Flask | REST API |
-| SQLite | Database |
-| HTML/CSS | User Interface |
-| Joblib | Saved ML Model |
-| Pandas | Data Processing |
-| NumPy | Numerical Computing |
-| Scikit-learn | Machine Learning |
-
----
-
-# 📂 Project Structure
-
-```text
-BloodLink/
-│
-├── app.py
-├── matcher.py
-├── blood_rules.py
-├── train_model.py
-├── generate_training_data.py
-├── donor_response_model.joblib
-├── training_data.csv
-├── bloodlink.db
-└── bloodlink.html
-```
-
----
-
-# 🚀 How It Works
-
-1. User submits blood group and location.
-2. Flask receives the request.
-3. Database loads nearby donors.
-4. Medical eligibility rules remove ineligible donors.
-5. Machine Learning predicts donor response probability.
-6. Distance bonus is applied.
-7. Highest ranked donors are returned.
-
----
-
-# 📊 Scoring Logic
-
-Final Score = ML Prediction + Distance Bonus
-
-Higher score means:
-
-- Better donor compatibility
-- More likely to respond
-- Closer to the patient
-- Medically eligible
-
----
-
-# ▶️ Run Locally
+For real training, provide a CSV containing the required feature columns plus `label`, then run:
 
 ```bash
-pip install flask pandas numpy scikit-learn joblib
+set BLOODLINK_DATA=path/to/real_interactions.csv
+python train_model.py
+```
+
+On macOS/Linux:
+
+```bash
+BLOODLINK_DATA=path/to/real_interactions.csv python train_model.py
+```
+
+The training script records the data source, model version, ROC-AUC, PR-AUC and training timestamp. Synthetic metrics must **not** be interpreted as clinical validation or real-world performance.
+
+## API
+
+### `POST /api/match-donors`
+
+```json
+{
+  "blood_group": "O+",
+  "lat": 13.0827,
+  "lon": 80.2707,
+  "max_distance": 30,
+  "urgency": "high"
+}
+```
+
+Returns ranked matches, excluded candidates, screening counts, model version, safety notice and a persisted `request_id`.
+
+### `POST /api/requests`
+
+Creates a persistent blood request.
+
+### `POST /api/interactions`
+
+Logs a donor contact and its outcome (`accepted`, `declined`, `no_response`, or `completed`). These records form the basis for future real-world model training.
+
+### `GET /api/requests/<request_id>/interactions`
+
+Returns the interaction history for a request.
+
+### `GET /api/health`
+
+Returns service status, model version and record counts.
+
+## Run locally
+
+```bash
+pip install -r requirements.txt
+python train_model.py
 python app.py
 ```
 
-Open:
+Open `http://127.0.0.1:5000`.
 
-```
-http://127.0.0.1:5000
-```
+## Project structure
 
----
-
-# 🧪 Verification
-
-After inspecting the uploaded project:
-
-- ✅ Flask backend (`app.py`) exists.
-- ✅ SQLite database (`bloodlink.db`) exists.
-- ✅ Trained ML model (`donor_response_model.joblib`) exists.
-- ✅ Matching engine (`matcher.py`) exists.
-- ✅ Rule engine (`blood_rules.py`) exists.
-- ✅ Training scripts are included.
-
-I also checked that the required project files are present. I could not fully execute the application in this environment because the execution environment encountered a Python runtime startup issue unrelated to the project itself, so I cannot honestly claim the application has been end-to-end verified here. Before publishing, you should run:
-
-```bash
-python app.py
+```text
+app.py                    Flask API, persistence and workflow
+matcher.py               Safety-first hybrid matching engine
+blood_rules.py            Blood compatibility and screening rules
+train_model.py            Model training/evaluation/versioning
+generate_training_data.py Synthetic demo training data
+dashboard.html            Human-first responsive product UI
+bloodlink.html            Original showcase UI
+requirements.txt          Python dependencies
+tests/                    Regression tests
+IMPLEMENTATION_STATUS.md  Implementation and safety notes
 ```
 
-and test a sample donor search locally.
+## Roadmap for real deployment
 
----
+1. Replace demo donor data with consented, verified records.
+2. Add authentication and role-based access for donors, patients, hospitals and admins.
+3. Minimize donor location exposure and protect personal data.
+4. Add real notification providers with consent and rate limiting.
+5. Capture verified response and donation outcomes.
+6. Retrain and calibrate the model on representative historical data.
+7. Evaluate precision@K, recall@K, PR-AUC, calibration and real operational outcomes.
+8. Add model monitoring, audit logs, migrations, backups and production deployment.
 
-# 📸 Screenshots
+## Disclaimer
 
-Add screenshots here after running the project.
-
-```md
-![Home](images/home.png)
-
-![Results](images/results.png)
-
-![ML Flow](images/ml.png)
-```
-
----
-
-# 🌍 Future Improvements
-
-- Live GPS integration
-- Google Maps/OpenStreetMap
-- Real-time donor notifications
-- User authentication
-- Mobile application
-- Hospital dashboard
-- Emergency SOS mode
-- AI demand prediction
-
----
-
-# 👨‍💻 Author
-
-**Ranjith**
-
-B.Sc Artificial Intelligence & Machine Learning
-
-AMET University
-
----
-
-## ⭐ If you like this project
-
-Give it a ⭐ on GitHub and contribute to improving emergency blood donation technology.
+This project is an educational/research prototype. It should not be used to make autonomous medical eligibility decisions or to replace professional blood-bank screening.
