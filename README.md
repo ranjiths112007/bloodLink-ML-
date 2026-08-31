@@ -6,216 +6,217 @@
 
 **Find the right donor when every minute matters.**
 
-[![BloodLink CI](https://github.com/ranjiths112007/bloodLink-ML-/actions/workflows/ci.yml/badge.svg)](https://github.com/ranjiths112007/bloodLink-ML-/actions/workflows/ci.yml)
+[![CI](https://github.com/ranjiths112007/bloodLink-ML-/actions/workflows/ci.yml/badge.svg)](https://github.com/ranjiths112007/bloodLink-ML-/actions/workflows/ci.yml)
 [![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![Flask](https://img.shields.io/badge/Backend-Flask-000000?logo=flask&logoColor=white)](https://flask.palletsprojects.com/)
 [![scikit--learn](https://img.shields.io/badge/ML-scikit--learn-F7931E?logo=scikit-learn&logoColor=white)](https://scikit-learn.org/)
 [![SQLite](https://img.shields.io/badge/Database-SQLite-003B57?logo=sqlite&logoColor=white)](https://www.sqlite.org/)
 [![Docker](https://img.shields.io/badge/Deploy-Docker-2496ED?logo=docker&logoColor=white)](https://www.docker.com/)
-
-<p>
-BloodLink is a full-stack AIML prototype that combines deterministic blood-group screening,
-location-aware ranking, donor-response prediction, explainable recommendations,
-role-based access, interaction tracking, and a human-centered interface.
-</p>
+[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 </div>
 
-> **Important safety boundary:** BloodLink is a matching and prioritization prototype. It is **not** a medical diagnosis, blood-bank clearance system, or substitute for clinical screening. Final donor eligibility must always be confirmed by an authorised blood bank or healthcare professional.
+> **Safety notice:** BloodLink is a matching and prioritization prototype. It is not a medical diagnosis, medical clearance, or replacement for professional blood-bank screening. Final eligibility and compatibility decisions must be made by qualified healthcare professionals.
 
----
+## What is BloodLink?
 
-## ✨ Why BloodLink exists
+BloodLink is a full-stack AIML application for finding and prioritizing nearby blood-donor candidates for a blood request.
 
-Finding a donor is not just a “nearest person with the same blood group” problem. A useful matching system needs to answer several questions at once:
+Instead of treating donor matching as a simple “same blood group + nearest location” search, BloodLink combines:
 
-- Is the donor compatible with the requested blood group?
-- Does the donor pass the application's screening rules?
-- How far away is the donor from the request location?
-- Is the donor available now?
-- How likely is this donor to respond to a request?
-- Can the system explain *why* one donor appears above another?
-- Can the observed response become data for improving future models?
+- deterministic blood-group compatibility rules
+- application-level donor screening rules
+- geographic distance
+- donor availability
+- historical response behaviour
+- machine-learning response prediction
+- explainable ranking reasons
+- user authentication and roles
+- persistent request and interaction data
 
-BloodLink is designed around that workflow.
+The central design principle is:
 
 ```text
-        HUMAN NEED
-             │
-             ▼
-       Blood Request
-             │
-             ▼
-    Request Validation
-             │
-             ▼
-   ┌─────────────────────┐
-   │ HARD SAFETY FILTER  │
-   │ compatibility       │
-   │ age / recency       │
-   │ distance            │
-   └──────────┬──────────┘
-              │
-              ▼
-       Eligible Pool
-              │
-              ▼
-      ML Response Model
-              │
-              ▼
-    Operational Ranking
-              │
-              ▼
-       Explainable List
-              │
-              ▼
-       Human Contact
-              │
-       ┌──────┴──────┐
-       ▼             ▼
-   Accepted       Declined /
-       │          No response
-       ▼
-  Donation outcome
-       │
-       ▼
- Historical data
-       │
-       ▼
- Future ML evaluation
+SAFETY RULES FIRST
+        ↓
+ELIGIBLE CANDIDATES
+        ↓
+ML PRIORITIZATION
+        ↓
+EXPLAINABLE RESULTS
+        ↓
+HUMAN DECISION
 ```
 
-The most important architectural rule is simple:
+---
 
-> **Rules decide who can enter the candidate pool. ML only helps decide who should be prioritised within that pool.**
+## Why it matters
+
+During a blood request, the useful question is not simply:
+
+> “Who is nearby?”
+
+It is closer to:
+
+> “Which compatible candidates can be considered, which are available, and which should be contacted first?”
+
+BloodLink is designed to support that workflow while keeping the final medical decision outside the model.
 
 ---
 
-## 🧭 Product experience
+## How it works
 
-BloodLink has two connected experiences.
+```text
+User creates / explores a request
+               ↓
+       Request validation
+               ↓
+   Blood-group compatibility
+               ↓
+   Demo eligibility screening
+               ↓
+      Distance filtering
+               ↓
+        Eligible pool
+               ↓
+    ML response prediction
+               ↓
+    Operational ranking
+               ↓
+ Explainable donor shortlist
+               ↓
+    Human contact decision
+               ↓
+ Accepted / declined / no response / completed
+               ↓
+       Interaction history
+               ↓
+ Future model evaluation + retraining
+```
 
-### 1. Public matching experience
+The ML component never acts as the medical gatekeeper.
 
-The main dashboard is deliberately human-first:
+---
 
-1. Choose the required blood group.
-2. Choose urgency.
-3. Choose a search radius.
-4. Click **Use my location**.
-5. The browser asks for location permission.
-6. BloodLink uses the approved coordinates to calculate request-to-donor distance.
-7. Compatible and screen-passing donors are ranked.
-8. The UI explains the reasons for the ranking.
-9. Exact donor coordinates are not exposed publicly; the map receives a coarse location projection.
+## Main user experiences
 
-### 2. Secure portal
+### Public matching experience
 
-The `/portal` workspace supports role-aware flows for:
+The public dashboard focuses on the fastest path to a useful result:
 
-| Role | Purpose |
+1. Select the required blood group.
+2. Select urgency.
+3. Select a search radius.
+4. Select **Use my location**.
+5. Grant browser location permission.
+6. BloodLink calculates distance to donor records.
+7. Compatible and screen-passing candidates are ranked.
+8. Results show practical explanations for the ranking.
+
+### Secure portal
+
+The portal provides role-aware access for:
+
+| Role | Main responsibility |
 |---|---|
-| **Donor** | Maintain donor information / availability and respond to requests |
-| **Patient** | Create and track a blood request |
-| **Hospital** | Create requests and record interaction outcomes |
-| **Admin** | View operational metrics and request activity |
-
-Authentication is session-based in the current prototype. Passwords are hashed with PBKDF2-HMAC-SHA256 rather than stored in plain text.
+| **Donor** | Maintain donor details and availability; participate in requests |
+| **Patient** | Create blood requests and review activity |
+| **Hospital** | Create requests and record donor outcomes |
+| **Admin** | Review operational metrics and request activity |
 
 ---
 
-## 🧠 How the matching algorithm works
+## Matching algorithm
 
-The matching engine in `matcher.py` is a **hybrid rule + ML ranking system**.
+BloodLink uses a hybrid **rules + ML ranking architecture**.
 
-### Step 1 — Validate the request
+### 1. Request validation
 
 The API validates:
 
-- blood group ∈ `{O-, O+, A-, A+, B-, B+, AB-, AB+}`
-- latitude ∈ `[-90, 90]`
-- longitude ∈ `[-180, 180]`
-- search radius ∈ `[1, 500] km`
-- urgency ∈ `{normal, high, critical}`
+- blood-group value
+- latitude and longitude ranges
+- search-radius limits
+- urgency values
+- JSON request structure
 
-Invalid inputs return structured API errors instead of raw server exceptions.
+Invalid input is returned as a structured API error.
 
-### Step 2 — Hard blood compatibility filter
+### 2. Compatibility screening
 
-The `blood_rules.py` compatibility table prevents incompatible blood groups from reaching the ML ranking stage.
-
-Conceptually:
+The project maintains a compatibility table for the eight blood-group labels used by the prototype:
 
 ```text
-Recipient O+  → O-, O+
-Recipient A+  → O-, O+, A-, A+
-Recipient B+  → O-, O+, B-, B+
-Recipient AB+ → all listed ABO/Rh groups
+O-   O+
+A-   A+
+B-   B+
+AB-  AB+
 ```
 
-This compatibility table is an application-level prototype rule. It does **not** replace blood-bank crossmatching, antibody screening, or medical clearance.
+Only compatible donors move to the ranking stage.
 
-### Step 3 — Demo eligibility screening
+This is an application-level screening rule and does not replace clinical crossmatching or blood-bank verification.
 
-Candidates are filtered by the current prototype rules:
+### 3. Application screening
 
-- age: `18–65`
-- donation gap: `>= 90 days` when a previous donation date is known
-- distance: inside the request radius
+The current prototype applies conservative demo constraints for:
 
-These values are intentionally documented as **conservative demo rules**, not universal medical policy.
+- donor age
+- donation recency
+- distance
+- blood compatibility
 
-### Step 4 — Distance calculation
+These values are product rules for the prototype, not universal medical policy.
 
-The backend computes geographic distance with the **Haversine formula**, which estimates great-circle distance from latitude/longitude coordinates.
+### 4. Geographic distance
 
-```python
+The backend calculates straight-line distance using the **Haversine formula**.
+
+```text
 Δlat = radians(lat₂ - lat₁)
 Δlon = radians(lon₂ - lon₁)
 
-A = sin²(Δlat / 2)
+a = sin²(Δlat / 2)
     + cos(lat₁) × cos(lat₂) × sin²(Δlon / 2)
 
-C = 2 × atan2(√A, √(1 - A))
-D = R × C
+c = 2 × atan2(√a, √(1-a))
+
+d = R × c
 ```
 
-where `R ≈ 6371 km`.
+where `R` is approximately `6371 km`.
 
-### Step 5 — ML response prediction
+### 5. ML response prediction
 
-The current bundled model is a **Random Forest classifier** using eight features:
+The current Random Forest model uses eight behavioural/context features:
 
-| Feature | Meaning | Why it matters |
-|---|---|---|
-| `distance_km` | Request-to-donor distance | Closer candidates are operationally easier to reach |
-| `days_since_last_donation` | Donation recency | Helps represent recency constraints/history |
-| `is_first_time_donor` | Whether there is no prior donation record | Separates first-time and returning patterns |
-| `age` | Donor age | Used as a model signal, not a clinical decision |
-| `past_donations` | Historical donation count | Approximate experience/engagement signal |
-| `response_rate` | Historical response ratio | Strong behavioural signal |
-| `avg_response_time_min` | Typical response delay | Helps prioritise faster responders |
-| `is_available_now` | Current availability flag | Strong operational signal |
+| Feature | Purpose |
+|---|---|
+| `distance_km` | Distance from request |
+| `days_since_last_donation` | Donation recency/history |
+| `is_first_time_donor` | First-time vs returning donor signal |
+| `age` | Donor profile feature |
+| `past_donations` | Donation history |
+| `response_rate` | Historical response behaviour |
+| `avg_response_time_min` | Historical response speed |
+| `is_available_now` | Current availability |
 
-The model outputs `P(response = 1)` through `predict_proba()`.
+The model produces a response probability through `predict_proba()`.
 
-### Step 6 — Operational ranking
+### 6. Operational ranking
 
-The current prototype converts the ML probability to a 0–85 contribution and adds a 0–15 proximity contribution:
+The prototype transforms the prediction and proximity into a transparent score:
 
 ```text
-compatibility_score
-    = 85 × ML response probability
-      + 15 × normalised proximity
+score = 85 × ML response probability
+        + 15 × proximity contribution
 ```
 
-The ranking is then sorted in descending score order.
+The `85/15` weighting is an engineering heuristic for the prototype, not a statistically learned or clinically validated formula.
 
-This is intentionally simple and transparent. Those `85/15` weights are **engineering heuristics**, not statistically optimised weights.
+### 7. Explainability
 
-### Step 7 — Human-readable explanations
-
-The engine adds reasons such as:
+Ranked candidates can include reasons such as:
 
 ```text
 available_now
@@ -226,64 +227,114 @@ fast_responder
 high_predicted_response
 ```
 
-So a user sees not just a number, but an understandable reason for the recommendation.
+The objective is to help a human understand the shortlist rather than presenting an unexplained number.
 
 ---
 
-## 🤖 Machine learning: what is real and what is still prototype
+## Machine learning and data
 
-This distinction is important.
+### Development dataset
 
-### Current demo model
+The repository includes a synthetic data generator that creates **6,000 donor/request interaction examples**.
 
-`generate_training_data.py` creates **6,000 synthetic donor/request interaction rows**. The label is produced from manually designed domain-style assumptions plus noise. `train_model.py` trains a `RandomForestClassifier` on that synthetic or supplied real CSV data.
+The generated labels are based on manually designed behavioural assumptions plus random noise. This makes the dataset useful for development and reproducible demos, but it does **not** prove real-world predictive performance.
 
-Therefore:
+### Current model
 
-> **The current model demonstrates the ML engineering pipeline. Its synthetic evaluation is not proof of real-world donor behaviour.**
+The primary training script uses a `RandomForestClassifier` with:
 
-The repository intentionally exposes the data source and model version so the UI/backend can distinguish synthetic prototype output from a future real model.
+- 400 trees
+- maximum depth of 8
+- minimum leaf size of 5
+- balanced class weighting
+- deterministic random seed
 
-### Real-data path
+The training process records data-source information, metrics, feature importances and a model version.
 
-There is also a `ml_pipeline.py` path designed for an authorised real dataset. It uses:
+### Real-data pathway
 
-- schema validation
-- missing-value imputation
-- feature scaling
-- Logistic Regression
-- stratified train/test split
+The repository also includes a real-data-ready training pipeline for an authorised historical outcome dataset.
+
+The real-data path includes:
+
+- required-column validation
+- missing-value handling
+- train/test splitting
+- feature preprocessing
+- Logistic Regression baseline
 - ROC-AUC
 - PR-AUC
-- versioned output metadata
+- versioned model metadata
 
-That gives BloodLink two useful development tracks:
-
-```text
-Synthetic data
-    ↓
-Demo / development / UI testing
-
-Authorised real outcomes
-    ↓
-Model evaluation
-    ↓
-Calibration
-    ↓
-Operational validation
-    ↓
-Production candidate model
-```
+This allows future evaluation against genuine observed donor outcomes without pretending synthetic data is real evidence.
 
 ---
 
-## 📊 Data model
+## ML feedback loop
 
-The core SQLite database contains these logical entities:
+Every donor interaction can become a future learning signal:
 
-### `users`
+```text
+Prediction
+   ↓
+Donor contacted
+   ↓
+Observed response
+   ↓
+Outcome stored
+   ↓
+Historical dataset
+   ↓
+Evaluate ranking quality
+   ↓
+Calibrate / retrain
+   ↓
+New model version
+```
 
-Identity and access information:
+Useful future metrics include:
+
+- ROC-AUC
+- PR-AUC
+- Precision@K
+- Recall@K
+- ranking quality such as NDCG@K
+- calibration
+- acceptance rate among top-ranked donors
+- completion rate
+- time to first accepted donor
+
+---
+
+## Location handling
+
+BloodLink does not silently assume a user's location.
+
+```text
+Use my location
+        ↓
+Browser Geolocation API
+        ↓
+Permission prompt
+        ↓
+User approval
+        ↓
+Request coordinates
+        ↓
+Distance calculation
+        ↓
+Donor ranking
+```
+
+The public interface explains why location is needed and handles permission denial or unavailable location explicitly.
+
+For donor privacy, exact donor coordinates are kept out of the public donor projection. The map uses a coarse location representation while distance remains available as a useful ranking signal.
+
+---
+
+## Data model
+
+### Users
 
 ```text
 user_id
@@ -295,28 +346,24 @@ is_active
 created_at
 ```
 
-### `donors`
-
-Matching-oriented donor profile data:
+### Donors
 
 ```text
- donor_id
- name
- blood_group
- age
- latitude
- longitude
- days_since_last_donation
- past_donations
- response_rate
- avg_response_time_min
- is_available_now
- image_url
+donor_id
+name
+blood_group
+age
+latitude
+longitude
+days_since_last_donation
+past_donations
+response_rate
+avg_response_time_min
+is_available_now
+image_url
 ```
 
-### `blood_requests`
-
-A request submitted by a patient/hospital/admin or generated by the public demo flow:
+### Blood requests
 
 ```text
 request_id
@@ -329,9 +376,7 @@ created_at
 created_by
 ```
 
-### `donor_interactions`
-
-The feedback-loop table:
+### Donor interactions
 
 ```text
 interaction_id
@@ -345,7 +390,7 @@ response_time_min
 created_at
 ```
 
-Current response outcomes are:
+Supported outcomes:
 
 ```text
 accepted
@@ -354,238 +399,54 @@ accepted
  completed
 ```
 
-This table is the bridge from a matching demo to a future behaviour-learning system.
+---
+
+## Authentication and roles
+
+The current application supports:
+
+```text
+DONOR
+PATIENT
+HOSPITAL
+ADMIN
+```
+
+The authentication layer provides:
+
+- account registration
+- login/logout
+- session lookup
+- password hashing
+- protected routes
+- role checks
+- HTTP-only cookies
+- SameSite cookie configuration
+- secure-cookie configuration for production
+
+Passwords are hashed using PBKDF2-HMAC-SHA256 rather than stored as plain text.
 
 ---
 
-## 🔄 The ML feedback loop
-
-This is where BloodLink becomes more interesting than a static prediction demo.
-
-```text
-Request
-   ↓
-Model ranks donors
-   ↓
-Donor contacted
-   ↓
-Observed outcome
-   ↓
-Interaction stored
-   ↓
-Dataset grows
-   ↓
-Evaluate future model
-   ↓
-Retrain / calibrate
-   ↓
-Version new model
-   ↓
-Deploy only after validation
-```
-
-The project records the prediction alongside the observed outcome so later evaluation can answer questions such as:
-
-- Are high-ranked donors actually responding more often?
-- Is the model calibrated?
-- Does ranking quality improve at `K=3`, `K=5`, or `K=10`?
-- Is the model becoming biased toward a particular donor segment?
-- Does urgency change operational performance?
-
----
-
-## 📍 Location flow
-
-Location is handled explicitly instead of pretending the application magically knows where the user is.
-
-```text
-User clicks "Use my location"
-          ↓
-Browser Geolocation API
-          ↓
-Browser permission prompt
-          ↓
-Approved coordinates
-          ↓
-BloodLink request location
-          ↓
-Haversine distance against donor records
-          ↓
-Distance-aware ranking
-```
-
-The application can still be explored without location permission, but **real nearby distance matching requires a real request location**.
-
-Privacy is intentionally separated from matching:
-
-- exact donor coordinates remain server-side
-- public responses contain approximate map coordinates
-- distance is still returned as a useful ranking signal
-- future contact details should be released only through authenticated, consented workflows
-
----
-
-## 🎨 UX and design philosophy
-
-BloodLink is designed around a **human-first** rather than “AI-first” experience.
-
-The main principles are:
-
-### Explain, don't impress
-
-Instead of showing only:
-
-```text
-Score: 91
-```
-
-the UI can explain:
-
-```text
-Available now
-Very close
-Strong response history
-Fast responder
-```
-
-### Reduce cognitive load
-
-The public flow uses a small number of decisions:
-
-```text
-Blood group → radius → urgency → location → results
-```
-
-### Show system state
-
-The interface distinguishes states such as:
-
-```text
-Loading…
-System online
-Location not shared
-Location ready
-No compatible donors
-API unavailable
-```
-
-### Design for mobile first behaviour
-
-The dashboard collapses its multi-column layout on smaller screens and keeps the primary action readable.
-
-### Don't expose technical jargon to donors
-
-A donor should see:
-
-> Someone nearby needs O+ blood.
-
-not:
-
-> Your predicted response probability is 0.83.
-
-Model details belong primarily in technical/admin views.
-
----
-
-## 🔐 Security and privacy
-
-The repository includes a prototype security layer, but it should **not** be confused with a completed security audit.
-
-Current protections include:
-
-- PBKDF2-HMAC-SHA256 password hashing
-- role-aware protected routes
-- HTTP-only session cookies
-- `SameSite=Lax` cookies
-- secure cookies in production mode
-- basic security headers
-- rate limiting for selected public/high-risk endpoints
-- structured API errors
-- exact donor coordinates withheld from public projections
-- `.gitignore` rules for local DBs, environments and secrets
-
-The security requirements are documented separately in [`SECURITY.md`](SECURITY.md).
-
-### Before real deployment
-
-A real service would still require:
-
-- a managed/audited identity provider or hardened auth service
-- encrypted production storage
-- strong secret management
-- CSRF protection appropriate to the final auth architecture
-- audit logging
-- verified hospital onboarding
-- explicit consent and communication preferences
-- backup/restore procedures
-- vulnerability scanning and penetration testing
-- privacy/legal/medical review
-
----
-
-## 📡 Notifications
-
-`notifications.py` provides a provider-neutral notification abstraction for:
-
-```text
-SMS
-WhatsApp
-Email
-Push
-```
-
-The current implementation **does not pretend messages were delivered**. In development it returns a queued state with `provider_configured: false` until a real provider is configured.
-
-That is intentional: fake “success” is worse than an explicit integration boundary.
-
----
-
-## 🏥 Admin analytics
-
-The admin layer exposes privacy-conscious aggregate metrics such as:
-
-- total contacts
-- accepted contacts
-- declined contacts
-- no-response contacts
-- completed outcomes
-- acceptance rate
-- completion rate
-- mean predicted probability
-- request counts by urgency
-- request demand by blood group
-
-The goal is to answer operational questions without turning the admin dashboard into a donor surveillance panel.
-
----
-
-## 🌐 API reference
-
-### `GET /api/health`
-
-Returns backend/model health and record counters.
-
-### `POST /api/auth/register`
-
-Create a role-aware account.
-
-### `POST /api/auth/login`
-
-Authenticate an account and establish a session.
-
-### `POST /api/auth/logout`
-
-Clear the current session.
-
-### `GET /api/auth/me`
-
-Return the current authenticated user, if present.
-
-### `POST /api/match-donors`
-
-Run the hybrid matcher and persist the request.
-
-Example:
+## API
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| `GET` | `/api/health` | Backend, model and database health |
+| `POST` | `/api/auth/register` | Create account |
+| `POST` | `/api/auth/login` | Authenticate |
+| `POST` | `/api/auth/logout` | End session |
+| `GET` | `/api/auth/me` | Get current session |
+| `POST` | `/api/match-donors` | Run donor matching |
+| `POST` | `/api/requests` | Create protected blood request |
+| `PUT` | `/api/donors/me` | Update donor profile/availability |
+| `POST` | `/api/interactions` | Record donor outcome |
+| `GET` | `/api/requests/<id>/interactions` | Request interaction history |
+| `GET` | `/api/admin/metrics` | Admin operational metrics |
+| `GET` | `/api/admin/requests` | Recent request activity |
+| `GET` | `/api/admin/request-summary` | Request summary |
+
+### Example request
 
 ```json
 {
@@ -597,593 +458,285 @@ Example:
 }
 ```
 
-Response contains, among other fields:
+### Example response fields
 
 ```json
 {
   "request_id": 12,
-  "matches": [],
-  "excluded": [],
-  "eligible_count": 5,
   "screened_count": 43,
+  "eligible_count": 5,
   "model_version": "synthetic-rf-…",
   "data_source": "synthetic",
-  "safety_notice": "…"
+  "matches": [],
+  "excluded": [],
+  "safety_notice": "..."
 }
 ```
 
-### `POST /api/requests`
+---
 
-Create a protected persistent request. Allowed roles: patient, hospital, admin.
+## Human-centered UI/UX
 
-### `POST /api/interactions`
+The interface is designed around the person's task rather than the technology behind it.
 
-Log an observed donor outcome. Allowed roles: donor, hospital, admin.
+### Principles
 
-### `GET /api/requests/<request_id>/interactions`
+**Clear next action** — the user should always know what to do next.
 
-View interaction history for an authenticated request owner class. Allowed roles: patient, hospital, admin.
+**Progressive disclosure** — technical information does not overwhelm the primary flow.
 
-### `PUT /api/donors/me`
+**Human language** — donors see useful context instead of ML jargon.
 
-Update the current donor profile/availability flow in the prototype. Allowed role: donor.
+**Transparent location use** — the application explains why permission is required.
 
-### `GET /api/admin/metrics`
+**Explainable recommendations** — ranked results provide reasons, not just scores.
 
-Return aggregate interaction metrics. Allowed role: admin.
+**Responsive design** — layouts adapt to desktop and mobile screens.
 
-### `GET /api/admin/requests`
-
-Return recent request records. Allowed role: admin.
-
-### `GET /api/admin/request-summary`
-
-Return aggregate request demand/urgency counts. Allowed role: admin.
-
-A concise API contract is also available in [`api_schema.md`](api_schema.md).
+**Explicit states** — loading, location unavailable, empty results and backend failures are represented visibly.
 
 ---
 
-## 🗂️ Repository structure
+## Security and privacy
 
-```text
-bloodLink-ML-\
-│
-├── app.py                         # Flask API, DB, auth, requests, matching routes
-├── wsgi.py                        # Gunicorn entrypoint + initialization
-├── matcher.py                     # Hybrid safety-first ML ranking engine
-├── blood_rules.py                 # Blood compatibility and screening helpers
-│
-├── train_model.py                 # Random Forest training/evaluation
-├── generate_training_data.py      # Synthetic development dataset generator
-├── ml_pipeline.py                # Real-data-ready alternate ML pipeline
-├── donor_response_model.joblib    # Bundled demo model artifact
-│
-├── auth.py                        # Password hashing + role normalization
-├── auth_store.py                  # SQLite-backed user store
-├── role_api.py                    # Reusable role authorization helpers
-├── donor_service.py               # Donor validation + availability helpers
-├── workflow_service.py            # Request/notification workflow helpers
-├── notifications.py               # Provider-neutral notifications boundary
-├── privacy.py                     # Public donor data projection
-├── admin_metrics.py               # Aggregate operational metrics
-├── app_hardening.py               # Rate limiting + security headers
-│
-├── dashboard.html                 # Public human-first matching experience
-├── portal.html                    # Authenticated role-aware workspace
-├── frontend_api.js                # Browser API client
-├── frontend_workflow.js           # Browser workflow helpers
-├── bloodlink.html                 # Earlier showcase UI
-│
-├── schema.sql                     # Reference database schema
-├── requirements.txt               # Python dependencies
-├── Dockerfile                     # Gunicorn production image
-├── docker-compose.yml              # Local production-like container setup
-├── .gitignore                     # Secrets/cache/database exclusions
-│
-├── .github/workflows/ci.yml       # Automated CI: syntax + pytest
-├── tests/                          # Regression and route/service tests
-├── SECURITY.md                     # Security/privacy boundaries
-├── MONITORING.md                   # Monitoring recommendations
-├── IMPLEMENTATION_STATUS.md       # Implementation boundary/status
-└── api_schema.md                   # API contract
-```
+Current application safeguards include:
+
+- PBKDF2 password hashing
+- role-aware authorization
+- HTTP-only sessions
+- SameSite cookies
+- production secure-cookie mode
+- security response headers
+- rate limiting for selected endpoints
+- structured API errors
+- privacy-safe donor map data
+- repository exclusions for secrets and local databases
+
+See [`SECURITY.md`](SECURITY.md) for the security and safety requirements.
+
+A real deployment should additionally use audited authentication infrastructure, encrypted production storage, managed secrets, audit logs, verified institutional onboarding, explicit communication consent, vulnerability testing and appropriate legal/privacy/medical review.
 
 ---
 
-## 🛠️ Tech stack
+## Notifications
 
-| Layer | Technology | Role in BloodLink |
-|---|---|---|
-| UI | HTML5 | Structure and accessible product markup |
-| UI styling | CSS3 | Responsive visual system and human-first presentation |
-| Browser logic | JavaScript | Maps, location, forms and API interactions |
-| Mapping | Leaflet + OpenStreetMap tiles | Request and coarse donor-area visualisation |
-| Backend | Python + Flask | REST API, workflow, persistence and auth |
-| Data processing | pandas + NumPy | Dataset handling and ML feature preparation |
-| ML | scikit-learn | Random Forest + evaluation + alternate Logistic Regression pipeline |
-| Model artifact | joblib | Serialised model bundle |
-| Database | SQLite | Prototype persistence |
-| Authentication | Flask sessions + PBKDF2-HMAC | Prototype role-aware account access |
-| Runtime | Gunicorn | Production WSGI server |
-| Packaging | Docker / Docker Compose | Reproducible runtime/deployment path |
-| Testing | pytest | Python regression tests |
-| CI | GitHub Actions | Automated syntax checking + test execution |
+The notification layer provides a provider-neutral interface for:
+
+- SMS
+- WhatsApp
+- Email
+- Push
+
+Without a configured provider, the development implementation reports a queued state rather than falsely claiming that a message was delivered.
 
 ---
 
-## 📈 Language usage
+## Admin analytics
 
-The following is an **approximate implementation-surface breakdown by tracked text-file size**, not an official GitHub Linguist measurement. CSS is embedded inside the HTML files, so it is counted under HTML here.
+The application includes privacy-conscious aggregate operational metrics such as:
 
-```text
-HTML          ~52%   ██████████████████████████
-Python        ~43%   ██████████████████████
-JavaScript     ~2%   █
-Markdown       ~2%   █
-SQL/YAML/etc.  ~1%   ▏
-```
-
-### What those percentages mean
-
-**HTML (~52%)** — Most of the user-facing experience lives in the two main web interfaces. They contain the visual system, responsive layout and embedded CSS.
-
-**Python (~43%)** — This is the application/AI core: Flask routes, database handling, matching logic, blood rules, model training, authentication, privacy, notifications, workflow services and tests.
-
-**JavaScript (~2%)** — Browser API calls and reusable workflow helpers. Much of the current UI behaviour is also embedded directly in the HTML applications.
-
-**Markdown (~2%)** — Documentation, security notes, monitoring notes, API contract and implementation status.
-
-**SQL/YAML/other (~1%)** — Reference schema and GitHub Actions/deployment configuration.
+- request count
+- urgency distribution
+- blood-group demand
+- contact count
+- accepted contacts
+- declined contacts
+- no-response contacts
+- completed outcomes
+- acceptance rate
+- completion rate
+- mean predicted probability
 
 ---
 
-## 🧪 Testing strategy
+## Testing and CI
 
-The repository contains tests for several important boundaries:
+The repository contains regression tests for:
 
-```text
-Authentication
-    ↓
-password hashing / login / duplicate users
+- health and API responses
+- invalid blood groups
+- invalid coordinates
+- authentication
+- authorization boundaries
+- password hashing
+- donor validation
+- workflow outcomes
+- donor privacy projections
+- notification behaviour
 
-Rules
-    ↓
-blood compatibility / age / donation recency
-
-API
-    ↓
-health / invalid blood group / invalid location / protected routes
-
-Privacy
-    ↓
-exact coordinates excluded from public projection
-
-Notifications
-    ↓
-never claim delivery without a configured provider
-
-Workflow
-    ↓
-match summaries / outcomes / availability filtering
-```
-
-CI runs on pushes to `main` and pull requests targeting `main` with:
-
-```text
-checkout
-  ↓
-Python 3.11
-  ↓
-pip install -r requirements.txt
-  ↓
-python -m compileall -q .
-  ↓
-pytest -q
-```
+GitHub Actions is configured to install dependencies, compile Python sources and run the pytest suite for changes targeting `main`.
 
 ---
 
-## 🚀 Run locally
+## Deployment
 
-### Option A — Python
-
-```bash
-git clone https://github.com/ranjiths112007/bloodLink-ML-.git
-cd bloodLink-ML-
-python -m venv .venv
-```
-
-Windows:
-
-```powershell
-.venv\Scripts\activate
-```
-
-macOS/Linux:
-
-```bash
-source .venv/bin/activate
-```
-
-Install dependencies:
+### Local
 
 ```bash
 pip install -r requirements.txt
-```
-
-Train the demo model:
-
-```bash
 python train_model.py
-```
-
-Start the application:
-
-```bash
 python app.py
 ```
 
-Open:
+Then open:
 
 ```text
 http://127.0.0.1:5000
 ```
 
-Authenticated workspace:
-
-```text
-http://127.0.0.1:5000/portal
-```
-
-### Option B — Docker
+### Docker
 
 ```bash
-docker compose up --build
+docker build -t bloodlink .
+docker run -p 5000:5000 bloodlink
 ```
 
-The container uses Gunicorn through `wsgi.py` and persists the SQLite application data inside the Compose volume.
+The container uses Gunicorn through the WSGI entrypoint.
 
----
-
-## ⚙️ Environment configuration
-
-Common configuration variables include:
+### Production direction
 
 ```text
-BLOODLINK_ENV=development|production
-BLOODLINK_SECRET_KEY=<strong-secret>
-BLOODLINK_DATA_DIR=<application-data-directory>
-BLOODLINK_DB_PATH=<optional-db-path>
-BLOODLINK_DATA=<optional-real-training-csv>
-BLOODLINK_REAL_DATA_PATH=<alternate-authorised-training-csv>
-BLOODLINK_RATE_WINDOW_SECONDS=60
-BLOODLINK_RATE_LIMIT=120
-PORT=5000
-FLASK_DEBUG=0
+HTTPS
+  ↓
+Flask / Gunicorn
+  ↓
+Managed database
+  ↓
+ML model service/artifact
+  ↓
+Notification provider
+  ↓
+Monitoring + audit logs
 ```
 
-For production, **never use the fallback development secret**. Supply a strong secret through a proper secret-management system.
+SQLite is appropriate for the current prototype. A managed database is recommended for real multi-user deployments.
 
 ---
 
-## 🧠 Training with authorised real data
+## Technology stack
 
-The current primary training script expects the same feature columns plus a binary `label`:
+| Layer | Technology |
+|---|---|
+| Frontend | HTML5, CSS3, Vanilla JavaScript |
+| Backend | Python, Flask |
+| Machine learning | scikit-learn |
+| Primary model | Random Forest Classifier |
+| Real-data baseline | Logistic Regression pipeline |
+| Data processing | pandas, NumPy |
+| Model serialization | joblib |
+| Database | SQLite |
+| Map | Leaflet + OpenStreetMap tiles |
+| Authentication | Flask sessions + PBKDF2-HMAC-SHA256 |
+| Testing | pytest |
+| CI | GitHub Actions |
+| Production server | Gunicorn |
+| Containers | Docker / Docker Compose |
+
+---
+
+## Approximate source-language composition
+
+GitHub Linguist may classify embedded CSS/JavaScript differently because much of the frontend is contained inside HTML files. The following is therefore an approximate repository composition rather than an official GitHub percentage:
+
+| Language / format | Approx. share |
+|---|---:|
+| Python | **~65%** |
+| HTML | **~25%** |
+| JavaScript | **~6%** |
+| CSS | **~3%** |
+| SQL / config / Markdown | **~1%** |
+
+Python dominates because it contains the backend, matching logic, authentication, data generation, training and supporting services.
+
+---
+
+## Project structure
 
 ```text
- distance_km
- days_since_last_donation
- is_first_time_donor
- age
- past_donations
- response_rate
- avg_response_time_min
- is_available_now
- label
-```
-
-Then:
-
-Windows PowerShell / CMD:
-
-```powershell
-set BLOODLINK_DATA=path\to\authorised_interactions.csv
-python train_model.py
-```
-
-macOS/Linux:
-
-```bash
-BLOODLINK_DATA=path/to/authorised_interactions.csv python train_model.py
-```
-
-The alternate `ml_pipeline.py` expects `responded` instead of `label` and uses a preprocessing + Logistic Regression pipeline.
-
-### Do not use private medical data casually
-
-Any real donor dataset must be:
-
-- lawfully collected and authorised for this use
-- appropriately consented or otherwise approved
-- minimised to necessary fields
-- access-controlled
-- securely stored
-- reviewed for privacy/medical/legal requirements
-
----
-
-## 🧮 Evaluation metrics
-
-The project already records:
-
-- ROC-AUC
-- PR-AUC
-- classification report
-- model/data source
-- model version
-- training timestamp
-- feature importances for the Random Forest path
-
-For a real production model, add:
-
-```text
-Precision@K
-Recall@K
-NDCG@K
-Brier score
-Calibration curves
-Response rate by rank position
-Time-to-accept
-Donation completion rate
-Model drift
-Data drift
-```
-
-For BloodLink, ranking metrics and operational outcomes are often more informative than a single generic accuracy number.
-
----
-
-## 📦 Model artifact
-
-`donor_response_model.joblib` is a serialised demo model bundle. The bundle contains:
-
-```text
-model
-features
-model_version
-data_source
-metrics
-```
-
-The exact current model artifact should be treated as a **demo dependency**, not a validated medical model.
-
----
-
-## 🧩 Design decisions worth knowing
-
-### Why rules before ML?
-
-Because an ML model is not the right place to encode hard safety constraints. A predictive model should not be able to “score” its way around a compatibility rule.
-
-### Why Random Forest?
-
-It is a practical baseline for tabular features, supports probability estimates and feature importance, and is easy to explain in a student/portfolio context.
-
-It is not claimed to be the best possible model for this problem.
-
-### Why SQLite?
-
-It keeps the prototype simple, local and easy to run. A larger deployment would likely move to PostgreSQL or another managed relational store.
-
-### Why coarse donor coordinates?
-
-A donor's exact home/location is sensitive information. The application can still calculate distance internally while reducing unnecessary public exposure.
-
-### Why synthetic data?
-
-The project needs a working demonstration without exposing real donor data. Synthetic data is acceptable for prototyping the pipeline; it is not a substitute for real validation.
-
----
-
-## 🗺️ Production architecture target
-
-The current repository is a strong prototype foundation. A larger deployment could evolve into:
-
-```text
-                 ┌─────────────────────┐
-                 │ Web / Mobile Client │
-                 └──────────┬──────────┘
-                            │ HTTPS
-                            ▼
-                  ┌─────────────────┐
-                  │ API / Auth Layer │
-                  └────────┬────────┘
-                           │
-           ┌───────────────┼────────────────┐
-           ▼               ▼                ▼
-      Request Service   Match Service   Notification Worker
-           │               │                │
-           ▼               ▼                ▼
-      PostgreSQL       ML Model Store    SMS / WhatsApp / Email
-           │               │
-           └───────┬───────┘
-                   ▼
-             Outcome Events
-                   │
-                   ▼
-            ML Evaluation / MLOps
-```
-
-For scale, the likely evolution is:
-
-```text
-SQLite → PostgreSQL
-in-process rate limit → Redis / gateway limit
-local sessions → managed identity provider
-local notifications → verified provider
-manual retraining → scheduled model pipeline
-basic logs → central observability
+bloodLink-ML-/
+├── app.py
+├── matcher.py
+├── blood_rules.py
+├── train_model.py
+├── ml_pipeline.py
+├── generate_training_data.py
+├── auth.py
+├── auth_store.py
+├── donor_service.py
+├── workflow_service.py
+├── notifications.py
+├── privacy.py
+├── app_hardening.py
+├── admin_metrics.py
+├── role_api.py
+├── frontend_api.js
+├── frontend_workflow.js
+├── dashboard.html
+├── portal.html
+├── schema.sql
+├── requirements.txt
+├── Dockerfile
+├── docker-compose.yml
+├── wsgi.py
+├── tests/
+├── .github/workflows/ci.yml
+├── SECURITY.md
+├── IMPLEMENTATION_STATUS.md
+├── api_schema.md
+└── LICENSE
 ```
 
 ---
 
-## ✅ Current implementation checklist
+## Project status
 
 | Capability | Status |
 |---|---|
-| Human-centered UI | ✅ |
-| Responsive dashboard | ✅ |
-| Browser location permission flow | ✅ |
-| Coarse donor-map privacy | ✅ |
-| Blood compatibility rules | ✅ |
-| Donor screening layer | ✅ |
-| Haversine distance | ✅ |
-| ML response ranking | ✅ |
-| Explainable match reasons | ✅ |
-| Persistent SQLite data | ✅ |
-| Authentication | ✅ Prototype |
-| Role-based access | ✅ Prototype |
-| Donor availability | ✅ Prototype |
-| Interaction/outcome logging | ✅ |
-| Admin aggregate metrics | ✅ |
-| Notification abstraction | ✅ |
-| Rate limiting | ✅ Basic |
-| Security headers | ✅ Baseline |
-| Docker deployment | ✅ |
-| Gunicorn WSGI path | ✅ |
-| Automated tests | ✅ |
-| GitHub Actions CI | ✅ |
-| Real-data-ready ML path | ✅ |
+| Full-stack web application | ✅ Implemented |
+| Flask backend | ✅ Implemented |
+| Donor matching | ✅ Implemented |
+| Blood compatibility layer | ✅ Implemented |
+| Browser geolocation | ✅ Implemented |
+| ML ranking | ✅ Implemented |
+| Explainable ranking | ✅ Implemented |
+| Authentication | ✅ Implemented |
+| Role-based access | ✅ Implemented |
+| Persistent requests/interactions | ✅ Implemented |
+| Admin metrics | ✅ Implemented |
+| Privacy-safe donor projection | ✅ Implemented |
+| Docker/Gunicorn deployment path | ✅ Implemented |
+| Automated test/CI configuration | ✅ Implemented |
 | Real donor dataset | ❌ Not included |
-| Medical validation | ❌ Not included |
-| Verified hospitals | ❌ Not included |
-| Real notification provider | ❌ Not configured |
-| Production security audit | ❌ Not completed |
+| Real-world ML validation | ❌ Not established |
+| Clinical certification | ❌ Not claimed |
+| Live communication provider | ⚙️ Requires provider configuration |
 
 ---
 
-## 🔮 Future roadmap
+## Open-source license
 
-### Near term
-
-- Better donor-to-user identity linking
-- Fully connected donor response UI
-- richer patient/hospital request history
-- stronger audit/event logging
-- database migrations
-- better automated end-to-end browser tests
-
-### ML evolution
-
-```text
-Synthetic baseline
-      ↓
-Authorised historical data
-      ↓
-Calibration
-      ↓
-Ranking evaluation
-      ↓
-Bias / drift checks
-      ↓
-Champion vs challenger models
-      ↓
-Controlled deployment
-```
-
-### Product evolution
-
-```text
-One request
-   ↓
-Multiple donor contacts
-   ↓
-Consent-aware notifications
-   ↓
-Hospital confirmation
-   ↓
-Completion tracking
-   ↓
-Real outcome analytics
-   ↓
-Demand forecasting
-```
-
-A future demand model could also estimate blood-group demand by region/time and help institutions prepare for recurring shortages.
+BloodLink is released under the **MIT License**. See [`LICENSE`](LICENSE).
 
 ---
 
-## 📚 Important documentation
+## Recognition / project credentials
 
-- [`SECURITY.md`](SECURITY.md) — security, privacy and medical-safety boundaries
-- [`MONITORING.md`](MONITORING.md) — monitoring recommendations
-- [`IMPLEMENTATION_STATUS.md`](IMPLEMENTATION_STATUS.md) — implementation boundary/status
+This repository includes engineering-quality project markers such as automated CI, testing, documented architecture, model metadata, security documentation and an open-source license.
+
+It does **not** claim medical certification, clinical approval, third-party validation, or any external award unless separately published and verifiable.
+
+---
+
+## Documentation
+
+- [`SECURITY.md`](SECURITY.md) — security, privacy and safety requirements
+- [`IMPLEMENTATION_STATUS.md`](IMPLEMENTATION_STATUS.md) — implementation boundaries
 - [`api_schema.md`](api_schema.md) — API contract
-- [`schema.sql`](schema.sql) — reference database schema
-
----
-
-## 🧑‍💻 Why this is a strong AIML project
-
-BloodLink is more than a classifier notebook. It demonstrates a complete engineering loop:
-
-```text
-Problem definition
-      ↓
-Data representation
-      ↓
-Domain rules
-      ↓
-Machine learning
-      ↓
-Backend API
-      ↓
-Database
-      ↓
-Frontend UX
-      ↓
-Authentication
-      ↓
-Privacy boundaries
-      ↓
-Testing / CI
-      ↓
-Deployment path
-      ↓
-Future feedback loop
-```
-
-That combination is the real value of the project: **AI is one component inside a usable system, not the entire product.**
-
----
-
-## ⚠️ Limitations you should know before presenting this project
-
-Be transparent when demonstrating BloodLink:
-
-1. The bundled model is trained with synthetic/demo data.
-2. The model's synthetic ROC-AUC/PR-AUC must not be described as clinical or real-world validation.
-3. The donor profiles are demo records, not a live donor registry.
-4. Notification channels are an integration boundary until a real provider is configured.
-5. Application-level screening rules are not medical clearance.
-6. The current authentication implementation is suitable for a prototype, not a completed security audit.
-7. Exact operational deployment requires appropriate institutional, medical, privacy and legal review.
-
-Being explicit about these limits makes the engineering story stronger, not weaker.
-
----
-
-## 📄 License
-
-Add the license that matches how you want BloodLink to be reused. A license file is intentionally not invented here.
 
 ---
 
 <div align="center">
 
-### Built as a human-first AIML systems project 🩸
-
-**BloodLink — technology should help people act faster, not make decisions for them.**
+**BloodLink — technology for connecting the right donor candidate to the right request faster.**
 
 </div>
