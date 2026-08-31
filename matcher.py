@@ -1,20 +1,11 @@
-"""
-matcher.py
-The hybrid donor-matching engine for BloodLink.
+"""Safety-first hybrid donor matching engine.
 
-Pipeline:
-  1. HARD FILTER (rules): blood compatibility, age eligibility, 90-day recency rule,
-     max distance cutoff. A donor that fails any of these is NEVER shown, regardless
-     of ML score.
-  2. ML RANKING: among eligible donors, predict probability of successful response,
-     using donor_response_model.joblib.
-  3. FINAL SCORE (0-100): blend of ML probability + a distance bonus, so that among
-     similarly "reliable" donors, closer ones still rank higher.
-
-Usage:
-    from matcher import find_best_donors
-    ranked = find_best_donors(request, donors)
+Hard screening rules run before ML. The model ranks only candidates that pass
+those rules. ML never makes a medical eligibility decision.
 """
+
+import os
+from typing import Dict, List
 
 import joblib
 import numpy as np
@@ -22,99 +13,104 @@ import pandas as pd
 
 from blood_rules import is_compatible, is_eligible_by_recency, is_eligible_by_age
 
-import os
-_BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-_MODEL_BUNDLE_PATH = os.path.join(_BASE_DIR, "donor_response_model.joblib")
-_MODEL_BUNDLE = joblib.load(_MODEL_BUNDLE_PATH)
-_MODEL = _MODEL_BUNDLE["model"]
-_FEATURES = _MODEL_BUNDLE["features"]
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+MODEL_PATH = os.path.join(BASE_DIR, "donor_response_model.joblib")
+DEFAULT_MAX_DISTANCE_KM = 30.0
 
-MAX_DISTANCE_KM = 30  # hard cutoff; tune per city/service area
+try:
+    bundle = joblib.load(MODEL_PATH)
+    MODEL = bundle["model"]
+    FEATURES = bundle["features"]
+    MODEL_VERSION = bundle.get("model_version", "prototype-synthetic-v1")
+except Exception as exc:  # fail clearly; API can return a useful 503
+    MODEL = None
+    FEATURES = []
+    MODEL_VERSION = "unavailable"
+    MODEL_LOAD_ERROR = str(exc)
 
 
-def _build_feature_row(donor):
-    """donor: dict with donor fields -> feature vector in the order the model expects."""
-    days_since = donor.get("days_since_last_donation")
-    is_first_time = 1 if days_since is None else 0
-    days_since_val = -1 if days_since is None else days_since
-
+def _build_feature_row(donor: Dict) -> List[float]:
+    days = donor.get("days_since_last_donation")
+    first_time = 1 if days is None else 0
+    days_value = -1 if days is None else float(days)
     row = {
-        "distance_km": donor["distance_km"],
-        "days_since_last_donation": days_since_val,
-        "is_first_time_donor": is_first_time,
-        "age": donor["age"],
-        "past_donations": donor.get("past_donations", 0),
-        "response_rate": donor.get("response_rate", 0.5),
-        "avg_response_time_min": donor.get("avg_response_time_min", 30.0),
+        "distance_km": float(donor["distance_km"]),
+        "days_since_last_donation": days_value,
+        "is_first_time_donor": first_time,
+        "age": int(donor["age"]),
+        "past_donations": int(donor.get("past_donations", 0)),
+        "response_rate": float(donor.get("response_rate", 0.5)),
+        "avg_response_time_min": float(donor.get("avg_response_time_min", 30.0)),
         "is_available_now": int(donor.get("is_available_now", 0)),
     }
-    return [row[f] for f in _FEATURES]
+    return [row[f] for f in FEATURES]
 
 
-def find_best_donors(request, donors, top_n=10, max_distance_km=MAX_DISTANCE_KM):
-    """
-    request: dict, must include "blood_group" (recipient's needed blood group)
-    donors: list of dicts, each must include:
-        donor_id, blood_group, distance_km, age,
-        days_since_last_donation (or None), past_donations,
-        response_rate, avg_response_time_min, is_available_now
-    Returns: list of donors sorted best-first, each with an added "compatibility_score" (0-100)
-             and "eligible_reason" / "excluded_reason" for transparency.
-    """
-    recipient_bg = request["blood_group"]
-    eligible = []
-    excluded = []
+def _why_ranked(donor: Dict, probability: float) -> List[str]:
+    reasons = []
+    if donor.get("is_available_now"):
+        reasons.append("available_now")
+    if donor.get("distance_km", 999) <= 5:
+        reasons.append("very_close")
+    elif donor.get("distance_km", 999) <= 10:
+        reasons.append("nearby")
+    if donor.get("response_rate", 0) >= 0.8:
+        reasons.append("strong_response_history")
+    if donor.get("avg_response_time_min", 999) <= 15:
+        reasons.append("fast_responder")
+    if probability >= 0.75:
+        reasons.append("high_predicted_response")
+    return reasons[:4] or ["eligible_candidate"]
 
+
+def find_best_donors(request: Dict, donors: List[Dict], top_n=10,
+                     max_distance_km=DEFAULT_MAX_DISTANCE_KM) -> Dict:
+    recipient_bg = str(request.get("blood_group", "")).strip().upper()
+    if recipient_bg not in {"O-", "O+", "A-", "A+", "B-", "B+", "AB-", "AB+"}:
+        raise ValueError("Invalid blood group")
+    if max_distance_km <= 0 or max_distance_km > 500:
+        raise ValueError("max_distance_km must be between 0 and 500")
+    if MODEL is None:
+        raise RuntimeError(f"ML model unavailable: {MODEL_LOAD_ERROR}")
+
+    eligible, excluded = [], []
     for donor in donors:
         if not is_compatible(donor["blood_group"], recipient_bg):
             excluded.append({**donor, "excluded_reason": "blood_type_incompatible"})
-            continue
-        if not is_eligible_by_age(donor["age"]):
+        elif not is_eligible_by_age(donor.get("age")):
             excluded.append({**donor, "excluded_reason": "age_out_of_range"})
-            continue
-        if not is_eligible_by_recency(donor.get("days_since_last_donation")):
+        elif not is_eligible_by_recency(donor.get("days_since_last_donation")):
             excluded.append({**donor, "excluded_reason": "too_soon_since_last_donation"})
-            continue
-        if donor["distance_km"] > max_distance_km:
+        elif float(donor["distance_km"]) > max_distance_km:
             excluded.append({**donor, "excluded_reason": "too_far"})
-            continue
-        eligible.append(donor)
+        else:
+            eligible.append(donor)
 
     if not eligible:
-        return {"matches": [], "excluded": excluded}
+        return {"matches": [], "excluded": excluded, "model_version": MODEL_VERSION,
+                "screened_count": len(donors), "eligible_count": 0}
 
-    X = pd.DataFrame([_build_feature_row(d) for d in eligible], columns=_FEATURES)
-    ml_probs = _MODEL.predict_proba(X)[:, 1]  # probability of successful response
-
+    X = pd.DataFrame([_build_feature_row(d) for d in eligible], columns=FEATURES)
+    probabilities = MODEL.predict_proba(X)[:, 1]
     results = []
-    for donor, prob in zip(eligible, ml_probs):
-        distance_bonus = max(0, (max_distance_km - donor["distance_km"]) / max_distance_km) * 15
-        final_score = np.clip(prob * 85 + distance_bonus, 0, 100)
+    for donor, probability in zip(eligible, probabilities):
+        distance = float(donor["distance_km"])
+        proximity = max(0.0, (max_distance_km - distance) / max_distance_km)
+        score = float(np.clip(float(probability) * 85.0 + proximity * 15.0, 0, 100))
         results.append({
             **donor,
-            "ml_response_probability": round(float(prob), 3),
-            "compatibility_score": round(float(final_score), 1),
+            "ml_response_probability": round(float(probability), 3),
+            "compatibility_score": round(score, 1),
+            "match_reasons": _why_ranked(donor, float(probability)),
+            "medical_screening": "passed_demo_screening",
         })
 
-    results.sort(key=lambda d: d["compatibility_score"], reverse=True)
-    return {"matches": results[:top_n], "excluded": excluded}
-
-
-if __name__ == "__main__":
-    # quick smoke test
-    request = {"blood_group": "O+"}
-    donors = [
-        {"donor_id": 1, "blood_group": "O-", "distance_km": 3.2, "age": 27,
-         "days_since_last_donation": 120, "past_donations": 5,
-         "response_rate": 0.9, "avg_response_time_min": 8, "is_available_now": 1},
-        {"donor_id": 2, "blood_group": "AB+", "distance_km": 2.0, "age": 30,
-         "days_since_last_donation": 400, "past_donations": 1,
-         "response_rate": 0.4, "avg_response_time_min": 60, "is_available_now": 0},
-        {"donor_id": 3, "blood_group": "O+", "distance_km": 15.0, "age": 45,
-         "days_since_last_donation": 40, "past_donations": 10,
-         "response_rate": 0.7, "avg_response_time_min": 20, "is_available_now": 1},
-    ]
-    result = find_best_donors(request, donors)
-    for m in result["matches"]:
-        print(m["donor_id"], m["compatibility_score"], m["ml_response_probability"])
-    print("Excluded:", [(e["donor_id"], e["excluded_reason"]) for e in result["excluded"]])
+    results.sort(key=lambda item: item["compatibility_score"], reverse=True)
+    return {
+        "matches": results[:max(1, min(int(top_n), 50))],
+        "excluded": excluded,
+        "model_version": MODEL_VERSION,
+        "screened_count": len(donors),
+        "eligible_count": len(eligible),
+        "safety_notice": "This is a matching recommendation, not a medical clearance. Final eligibility must be confirmed by an authorised blood bank or medical professional.",
+    }
