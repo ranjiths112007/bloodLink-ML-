@@ -1,0 +1,1 @@
+BloodLink UI is served from dashboard.html at the repository root.
