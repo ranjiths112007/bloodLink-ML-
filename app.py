@@ -1,11 +1,14 @@
-import os
 import math
+import os
 import sqlite3
-from flask import Flask, request, jsonify, send_file
-from matcher import find_best_donors
+from flask import Flask, jsonify, request, send_file
+
+from blood_rules import VALID_BLOOD_GROUPS
+from matcher import find_best_donors, MODEL_VERSION
 
 app = Flask(__name__)
-DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "bloodlink.db")
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_PATH = os.path.join(BASE_DIR, "bloodlink.db")
 
 
 def get_db():
@@ -14,159 +17,139 @@ def get_db():
     return conn
 
 
+def init_db(seed_demo=False):
+    """Create persistent schema. Never drops existing production data."""
+    conn = get_db()
+    conn.execute("""CREATE TABLE IF NOT EXISTS donors (
+        donor_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        blood_group TEXT NOT NULL,
+        age INTEGER NOT NULL,
+        latitude REAL NOT NULL,
+        longitude REAL NOT NULL,
+        days_since_last_donation INTEGER,
+        past_donations INTEGER DEFAULT 0,
+        response_rate REAL DEFAULT 0.5,
+        avg_response_time_min REAL DEFAULT 30.0,
+        is_available_now INTEGER DEFAULT 0,
+        image_url TEXT
+    )""")
+    conn.execute("""CREATE TABLE IF NOT EXISTS blood_requests (
+        request_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        blood_group TEXT NOT NULL,
+        latitude REAL NOT NULL,
+        longitude REAL NOT NULL,
+        max_distance_km REAL NOT NULL DEFAULT 30,
+        urgency TEXT NOT NULL DEFAULT 'normal',
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )""")
+    conn.execute("""CREATE TABLE IF NOT EXISTS donor_interactions (
+        interaction_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        request_id INTEGER NOT NULL,
+        donor_id INTEGER NOT NULL,
+        rank_position INTEGER,
+        predicted_probability REAL,
+        contacted_at TEXT,
+        response TEXT CHECK(response IN ('accepted','declined','no_response','completed')),
+        response_time_min REAL,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY(request_id) REFERENCES blood_requests(request_id),
+        FOREIGN KEY(donor_id) REFERENCES donors(donor_id)
+    )""")
+    conn.commit()
+    conn.close()
+
+
 def haversine_km(lat1, lon1, lat2, lon2):
-    """Computes geographical distance in kilometers between two lat/lon coordinates."""
-    R = 6371.0
+    radius = 6371.0
     dlat = math.radians(lat2 - lat1)
     dlon = math.radians(lon2 - lon1)
-    a = (math.sin(dlat / 2.0) ** 2 +
-         math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlon / 2.0) ** 2)
-    return R * 2.0 * math.atan2(math.sqrt(a), math.sqrt(1.0 - a))
+    a = math.sin(dlat / 2) ** 2 + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlon / 2) ** 2
+    return radius * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
 
 
-def init_db():
-    """Initializes the database, drops existing donors table, and seeds with 43 donors near Chennai."""
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute("DROP TABLE IF EXISTS donors")
-    cursor.execute("""
-        CREATE TABLE donors (
-            donor_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
-            blood_group TEXT NOT NULL,
-            age INTEGER NOT NULL,
-            latitude REAL NOT NULL,
-            longitude REAL NOT NULL,
-            days_since_last_donation INTEGER,
-            past_donations INTEGER DEFAULT 0,
-            response_rate REAL DEFAULT 0.5,
-            avg_response_time_min REAL DEFAULT 30.0,
-            is_available_now INTEGER DEFAULT 0,
-            image_url TEXT
-        )
-    """)
-    conn.commit()
-
-    # Seed exactly 43 donors centered around Chennai (13.0827, 80.2707)
-    lat_ref, lon_ref = 13.0827, 80.2707
-
-    import random
-    random.seed(42)  # For reproducible generator values
-
-    names_pool = [
-        "Arjun Kumar", "Divya Ramesh", "Karthik S", "Meena Priya", "Vignesh R",
-        "Sowmya Iyer", "Naveen T", "Priya Dharshini", "Rahul Krishnan", "Kavya Suresh",
-        "Suresh Kumar", "Anjali Sharma", "Vikram Singh", "Lakshmi Devi", "Rajesh V",
-        "Shalini R", "Mohan Lal", "Sneha Gupta", "Manoj Nair", "Deepa J",
-        "Prem Chand", "Harini S", "Balaji E", "Gayathri K", "Ram Prasath",
-        "Aravind Swamy", "Nisha Patel", "Prakash Raj", "Keerthi Reddy", "Sanjay Dutt",
-        "Aisha Begum", "Vijay Chandar", "Shruthi Hariharan", "Aditya Roy", "Geetha Sen",
-        "Rohan Mehra", "Pooja Hegde", "Siddharth Rao", "Aparna Pillai", "Madhavan R",
-        "Nivedita Bose", "Ketan Mehta", "Swara Bhaskar", "Gautam Gambhir", "Meera Jasmine"
-    ]
-
-    blood_groups_pool = ["O-", "O+", "A-", "A+", "B-", "B+", "AB-", "AB+"]
-
-    def get_coords(dist_km, angle_rad):
-        lat_off = (dist_km * math.cos(angle_rad)) / 111.32
-        lon_off = (dist_km * math.sin(angle_rad)) / (111.32 * math.cos(math.radians(lat_ref)))
-        return round(lat_ref + lat_off, 6), round(lon_ref + lon_off, 6)
-
-    for i in range(43):
-        name = names_pool[i % len(names_pool)]
-        bg = random.choice(blood_groups_pool)
-        age = random.randint(18, 65)
-
-        # Distance: random between 1.0 and 38.0 km
-        dist = random.uniform(1.0, 38.0)
-        angle = random.uniform(0, 2 * math.pi)
-        lat, lon = get_coords(dist, angle)
-
-        # Days since last donation: 15% first-time donors, rest 30 to 600 days
-        if random.random() < 0.15:
-            days = None
-            past = 0
-            resp = 0.5
-            avg_time = 30.0
-        else:
-            days = random.randint(30, 500)
-            past = random.randint(1, 18)
-            resp = round(random.uniform(0.35, 0.99), 2)
-            avg_time = round(random.uniform(4.0, 85.0), 1)
-
-        avail = 1 if random.random() < 0.75 else 0
-        img = f"https://i.pravatar.cc/100?img={(i % 70) + 1}"
-
-        cursor.execute("""
-            INSERT INTO donors (name, blood_group, age, latitude, longitude,
-                                days_since_last_donation, past_donations,
-                                response_rate, avg_response_time_min, is_available_now, image_url)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (name, bg, age, lat, lon, days, past, resp, avg_time, avail, img))
-
-    conn.commit()
-    print("Database drop-recreated and seeded with 43 Chennai donors.")
-    conn.close()
+def error(message, code, status=400):
+    return jsonify({"error": {"code": code, "message": message}}), status
 
 
 @app.route("/")
 def index():
-    return send_file(os.path.join(os.path.dirname(os.path.abspath(__file__)), "bloodlink.html"))
+    return send_file(os.path.join(BASE_DIR, "bloodlink.html"))
+
+
+@app.route("/api/health")
+def health():
+    try:
+        conn = get_db()
+        donor_count = conn.execute("SELECT COUNT(*) FROM donors").fetchone()[0]
+        conn.close()
+        return jsonify({"status": "ok", "model_version": MODEL_VERSION, "donor_count": donor_count})
+    except Exception as exc:
+        return jsonify({"status": "error", "message": str(exc)}), 503
 
 
 @app.route("/api/match-donors", methods=["POST"])
 def match_donors():
-    """
-    POST payload schema:
-    {
-      "blood_group": "O+",
-      "lat": 13.0827,
-      "lon": 80.2707,
-      "max_distance": 30.0
-    }
-    """
-    payload = request.get_json() or {}
-    recipient_bg = payload.get("blood_group", "O+")
-    recipient_lat = float(payload.get("lat", 13.0827))
-    recipient_lon = float(payload.get("lon", 80.2707))
-    max_distance = float(payload.get("max_distance", 30.0))
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        return error("JSON request body is required.", "INVALID_JSON")
+
+    blood_group = str(payload.get("blood_group", "")).strip().upper()
+    if blood_group not in VALID_BLOOD_GROUPS:
+        return error("Invalid blood group.", "INVALID_BLOOD_GROUP")
+
+    try:
+        lat = float(payload["lat"])
+        lon = float(payload["lon"])
+        max_distance = float(payload.get("max_distance", 30.0))
+    except (KeyError, TypeError, ValueError):
+        return error("lat and lon must be valid numbers.", "INVALID_LOCATION")
+
+    if not (-90 <= lat <= 90 and -180 <= lon <= 180):
+        return error("Latitude must be -90..90 and longitude -180..180.", "INVALID_LOCATION")
+    if not (1 <= max_distance <= 500):
+        return error("max_distance must be between 1 and 500 km.", "INVALID_DISTANCE")
 
     conn = get_db()
-    rows = conn.execute("""
-        SELECT donor_id, name, blood_group, age, latitude, longitude,
-               days_since_last_donation, past_donations,
-               response_rate, avg_response_time_min, is_available_now, image_url
-        FROM donors
-    """).fetchall()
+    rows = conn.execute("SELECT donor_id,name,blood_group,age,latitude,longitude,days_since_last_donation,past_donations,response_rate,avg_response_time_min,is_available_now,image_url FROM donors").fetchall()
     conn.close()
 
-    donors_list = []
-    for r in rows:
-        distance_km = haversine_km(recipient_lat, recipient_lon, r["latitude"], r["longitude"])
-        donors_list.append({
-            "donor_id": r["donor_id"],
-            "name": r["name"],
-            "blood_group": r["blood_group"],
-            "age": r["age"],
-            "latitude": r["latitude"],
-            "longitude": r["longitude"],
-            "distance_km": round(distance_km, 2),
-            "days_since_last_donation": r["days_since_last_donation"],
-            "past_donations": r["past_donations"],
-            "response_rate": r["response_rate"],
-            "avg_response_time_min": r["avg_response_time_min"],
-            "is_available_now": r["is_available_now"],
-            "image_url": r["image_url"],
-        })
+    donors = []
+    for row in rows:
+        donor = dict(row)
+        donor["distance_km"] = round(haversine_km(lat, lon, donor["latitude"], donor["longitude"]), 2)
+        donors.append(donor)
 
-    # Call matcher pipeline returning up to 43 matches
-    result = find_best_donors(
-        {"blood_group": recipient_bg},
-        donors_list,
-        top_n=43,
-        max_distance_km=max_distance
-    )
+    try:
+        result = find_best_donors({"blood_group": blood_group}, donors, top_n=10, max_distance_km=max_distance)
+    except RuntimeError as exc:
+        return error(str(exc), "MODEL_UNAVAILABLE", 503)
+    except ValueError as exc:
+        return error(str(exc), "INVALID_REQUEST")
     return jsonify(result)
+
+
+@app.route("/api/requests", methods=["POST"])
+def create_request():
+    payload = request.get_json(silent=True) or {}
+    blood_group = str(payload.get("blood_group", "")).strip().upper()
+    if blood_group not in VALID_BLOOD_GROUPS:
+        return error("Invalid blood group.", "INVALID_BLOOD_GROUP")
+    try:
+        lat, lon = float(payload["lat"]), float(payload["lon"])
+        max_distance = float(payload.get("max_distance", 30))
+    except (KeyError, TypeError, ValueError):
+        return error("Valid lat and lon are required.", "INVALID_LOCATION")
+    urgency = str(payload.get("urgency", "normal")).lower()
+    if urgency not in {"normal", "high", "critical"}:
+        return error("urgency must be normal, high, or critical.", "INVALID_URGENCY")
+
+    conn = get_db()
+    cur = conn.execute("INSERT INTO blood_requests (blood_group,latitude,longitude,max_distance_km,urgency) VALUES (?,?,?,?,?)", (blood_group, lat, lon, max_distance, urgency))
+    request_id = cur.lastrowid
+    conn.commit()
+    conn.close()
+    return jsonify({"request_id": request_id, "status": "created"}), 201
 
 
 if __name__ == "__main__":
