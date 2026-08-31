@@ -41,18 +41,20 @@ def get_db():
 def seed_demo_donors(conn):
     if conn.execute("SELECT COUNT(*) FROM donors").fetchone()[0] > 0:
         return
-    names = ["Arjun Kumar","Divya Ramesh","Karthik S","Meena Priya","Vignesh R","Sowmya Iyer","Naveen T","Priya Dharshini","Rahul Krishnan","Kavya Suresh","Suresh Kumar","Anjali Sharma","Vikram Singh","Lakshmi Devi","Rajesh V","Shalini R","Mohan Lal","Sneha Gupta","Manoj Nair","Deepa J","Prem Chand","Harini S","Balaji E","Gayathri K","Ram Prasath","Aravind Swamy","Nisha Patel","Prakash Raj","Keerthi Reddy","Sanjay Dutt","Aisha Begum","Vijay Chandar","Shruthi Hariharan","Aditya Roy","Geetha Sen","Rohan Mehra","Pooja Hegde","Siddharth Rao","Aparna Pillai","Madhavan R","Nivedita Bose","Ketan Mehta","Swara Bhaskar","Gautam Gambhir","Meera Jasmine"]
-    groups = sorted(VALID_BLOOD_GROUPS)
-    random.seed(42); lat0, lon0 = 13.0827, 80.2707
-    for i, name in enumerate(names):
-        distance = random.uniform(1, 38); angle = random.uniform(0, 2 * math.pi)
-        lat = lat0 + (distance * math.cos(angle)) / 111.32
-        lon = lon0 + (distance * math.sin(angle)) / (111.32 * math.cos(math.radians(lat0)))
-        first = random.random() < .15
-        days = None if first else random.randint(30, 500)
-        past = 0 if first else random.randint(1, 18)
-        conn.execute("INSERT INTO donors (name,blood_group,age,latitude,longitude,days_since_last_donation,past_donations,response_rate,avg_response_time_min,is_available_now,image_url) VALUES (?,?,?,?,?,?,?,?,?,?,?)", (name, random.choice(groups), random.randint(18,65), round(lat,6), round(lon,6), days, past, .5 if first else round(random.uniform(.35,.99),2), 30.0 if first else round(random.uniform(4,85),1), 1 if random.random()<.75 else 0, f"https://i.pravatar.cc/100?img={(i%70)+1}"))
-    conn.commit()
+    try:
+        from seed_tamilnadu_donors import generate_donors
+        donors = generate_donors()
+        conn.executemany("""
+        INSERT INTO donors (
+            name, blood_group, age, latitude, longitude,
+            days_since_last_donation, past_donations, response_rate,
+            avg_response_time_min, is_available_now, image_url
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, donors)
+        conn.commit()
+    except Exception as exc:
+        print("Error seeding donors:", exc)
+
 
 
 def init_db(seed_demo=True):
@@ -151,7 +153,8 @@ def match_donors():
     donors=[]
     for row in rows:
         d=dict(row); d["distance_km"]=round(haversine_km(lat,lon,d["latitude"],d["longitude"]),2); donors.append(d)
-    try: result=find_best_donors({"blood_group":bg,"urgency":urgency},donors,top_n=10,max_distance_km=radius)
+    top_n=int(payload.get("top_n", 200))
+    try: result=find_best_donors({"blood_group":bg,"urgency":urgency},donors,top_n=top_n,max_distance_km=radius)
     except RuntimeError as exc: return error(str(exc),"MODEL_UNAVAILABLE",503)
     except ValueError as exc: return error(str(exc),"INVALID_REQUEST")
     conn=get_db(); cur=conn.execute("INSERT INTO blood_requests (blood_group,latitude,longitude,max_distance_km,urgency,created_by) VALUES (?,?,?,?,?,?)",(bg,lat,lon,radius,urgency,(session.get("user") or {}).get("user_id"))); result["request_id"]=cur.lastrowid; conn.commit(); conn.close()

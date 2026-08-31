@@ -32,12 +32,17 @@ def test_health(client):
 
 
 def test_invalid_request_is_rejected(client):
+    with client.session_transaction() as sess:
+        sess['user'] = {'user_id': 1, 'role': 'patient'}
     response = client.post('/api/requests', json={'blood_group': 'X+', 'lat': 13, 'lon': 80})
     assert response.status_code == 400
     assert response.get_json()['error']['code'] == 'INVALID_BLOOD_GROUP'
 
 
 def test_invalid_location_is_rejected(client):
+    with client.session_transaction() as sess:
+        sess['user'] = {'user_id': 1, 'role': 'patient'}
     response = client.post('/api/requests', json={'blood_group': 'O+', 'lat': 999, 'lon': 80})
     assert response.status_code == 400
     assert response.get_json()['error']['code'] == 'INVALID_LOCATION'
+

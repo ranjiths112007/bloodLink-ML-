@@ -15,7 +15,7 @@ from blood_rules import is_compatible, is_eligible_by_recency, is_eligible_by_ag
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 MODEL_PATH = os.path.join(BASE_DIR, "donor_response_model.joblib")
-DEFAULT_MAX_DISTANCE_KM = 30.0
+DEFAULT_MAX_DISTANCE_KM = 500.0
 
 try:
     bundle = joblib.load(MODEL_PATH)
@@ -67,7 +67,7 @@ def _why_ranked(donor: Dict, probability: float) -> List[str]:
     return reasons[:4] or ["eligible_candidate"]
 
 
-def find_best_donors(request: Dict, donors: List[Dict], top_n=10,
+def find_best_donors(request: Dict, donors: List[Dict], top_n=100,
                      max_distance_km=DEFAULT_MAX_DISTANCE_KM) -> Dict:
     recipient_bg = str(request.get("blood_group", "")).strip().upper()
     if recipient_bg not in {"O-", "O+", "A-", "A+", "B-", "B+", "AB-", "AB+"}:
@@ -112,7 +112,7 @@ def find_best_donors(request: Dict, donors: List[Dict], top_n=10,
 
     results.sort(key=lambda item: item["compatibility_score"], reverse=True)
     return {
-        "matches": results[:max(1, min(int(top_n), 50))],
+        "matches": results[:max(1, min(int(top_n), 500))],
         "excluded": excluded,
         "model_version": MODEL_VERSION,
         "data_source": MODEL_DATA_SOURCE,
