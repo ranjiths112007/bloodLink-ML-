@@ -1,40 +1,48 @@
-"""
-blood_rules.py
-Hard medical compatibility rules for blood donation.
-These are NEVER learned by ML - they are fixed medical facts.
+"""Safety-first donor eligibility and blood-group compatibility rules.
+
+IMPORTANT: These rules are screening rules for the demo. Final donor eligibility
+must be confirmed by an authorised blood bank/medical professional.
 """
 
-# recipient_blood_group -> list of donor blood groups that can donate to them
 COMPATIBILITY = {
-    "O-":  ["O-"],
-    "O+":  ["O-", "O+"],
-    "A-":  ["O-", "A-"],
-    "A+":  ["O-", "O+", "A-", "A+"],
-    "B-":  ["O-", "B-"],
-    "B+":  ["O-", "O+", "B-", "B+"],
+    "O-": ["O-"],
+    "O+": ["O-", "O+"],
+    "A-": ["O-", "A-"],
+    "A+": ["O-", "O+", "A-", "A+"],
+    "B-": ["O-", "B-"],
+    "B+": ["O-", "O+", "B-", "B+"],
     "AB-": ["O-", "A-", "B-", "AB-"],
     "AB+": ["O-", "O+", "A-", "A+", "B-", "B+", "AB-", "AB+"],
 }
+VALID_BLOOD_GROUPS = frozenset(COMPATIBILITY)
+
+
+def normalize_blood_group(value: str) -> str:
+    value = str(value or "").strip().upper()
+    if value not in VALID_BLOOD_GROUPS:
+        raise ValueError(f"Unknown blood group: {value or '<empty>'}")
+    return value
 
 
 def is_compatible(donor_blood_group: str, recipient_blood_group: str) -> bool:
-    """Returns True if donor can legally/medically donate to recipient."""
-    donor_blood_group = donor_blood_group.strip().upper()
-    recipient_blood_group = recipient_blood_group.strip().upper()
-    if recipient_blood_group not in COMPATIBILITY:
-        raise ValueError(f"Unknown blood group: {recipient_blood_group}")
-    return donor_blood_group in COMPATIBILITY[recipient_blood_group]
+    donor = normalize_blood_group(donor_blood_group)
+    recipient = normalize_blood_group(recipient_blood_group)
+    return donor in COMPATIBILITY[recipient]
 
 
-def is_eligible_by_recency(days_since_last_donation, min_gap_days=90):
-    """
-    Medical rule: donors must wait ~90 days (3 months) between whole blood donations.
-    If days_since_last_donation is None, treat as first-time donor (eligible).
-    """
+def is_eligible_by_recency(days_since_last_donation, min_gap_days: int = 90) -> bool:
     if days_since_last_donation is None:
         return True
-    return days_since_last_donation >= min_gap_days
+    try:
+        days = float(days_since_last_donation)
+    except (TypeError, ValueError):
+        return False
+    return days >= min_gap_days
 
 
-def is_eligible_by_age(age, min_age=18, max_age=65):
+def is_eligible_by_age(age, min_age: int = 18, max_age: int = 65) -> bool:
+    try:
+        age = int(age)
+    except (TypeError, ValueError):
+        return False
     return min_age <= age <= max_age
