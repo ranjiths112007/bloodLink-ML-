@@ -1,4 +1,17 @@
-"""Privacy-conscious operational metrics for administrators."""
+"""Operational donor/request metrics with no donor identity in aggregates."""
+from collections import Counter
+
+
+def summarize_requests(rows):
+    urgency = Counter((r.get('urgency') or 'normal') for r in rows)
+    groups = Counter((r.get('blood_group') or 'unknown') for r in rows)
+    return {
+        'total_requests': len(rows),
+        'critical_requests': urgency.get('critical', 0),
+        'high_requests': urgency.get('high', 0),
+        'normal_requests': urgency.get('normal', 0),
+        'blood_group_demand': dict(sorted(groups.items())),
+    }
 
 
 def summarize_interactions(rows):
