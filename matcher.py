@@ -22,10 +22,14 @@ try:
     MODEL = bundle["model"]
     FEATURES = bundle["features"]
     MODEL_VERSION = bundle.get("model_version", "prototype-synthetic-v1")
-except Exception as exc:  # fail clearly; API can return a useful 503
+    MODEL_DATA_SOURCE = bundle.get("data_source", "unknown")
+    MODEL_METRICS = bundle.get("metrics", {})
+except Exception as exc:
     MODEL = None
     FEATURES = []
     MODEL_VERSION = "unavailable"
+    MODEL_DATA_SOURCE = "unknown"
+    MODEL_METRICS = {}
     MODEL_LOAD_ERROR = str(exc)
 
 
@@ -88,7 +92,8 @@ def find_best_donors(request: Dict, donors: List[Dict], top_n=10,
 
     if not eligible:
         return {"matches": [], "excluded": excluded, "model_version": MODEL_VERSION,
-                "screened_count": len(donors), "eligible_count": 0}
+                "data_source": MODEL_DATA_SOURCE, "screened_count": len(donors),
+                "eligible_count": 0, "safety_notice": "No eligible demo-screened donors were found. Final eligibility must be confirmed by an authorised blood bank or medical professional."}
 
     X = pd.DataFrame([_build_feature_row(d) for d in eligible], columns=FEATURES)
     probabilities = MODEL.predict_proba(X)[:, 1]
@@ -110,6 +115,8 @@ def find_best_donors(request: Dict, donors: List[Dict], top_n=10,
         "matches": results[:max(1, min(int(top_n), 50))],
         "excluded": excluded,
         "model_version": MODEL_VERSION,
+        "data_source": MODEL_DATA_SOURCE,
+        "model_metrics": MODEL_METRICS,
         "screened_count": len(donors),
         "eligible_count": len(eligible),
         "safety_notice": "This is a matching recommendation, not a medical clearance. Final eligibility must be confirmed by an authorised blood bank or medical professional.",
